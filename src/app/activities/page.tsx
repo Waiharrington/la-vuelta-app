@@ -140,7 +140,8 @@ export default function ActivitiesPage() {
           ) : (
             <div className="space-y-3">
               {activities.map((activity) => (
-                <article key={activity.id} className="activity-card brand-panel p-4">
+                <Link key={activity.id} href={`/activities/${activity.id}`}>
+                  <article className="activity-card brand-panel p-4 transition hover:-translate-y-0.5 hover:border-caramel/30">
                   <div className="mb-4 flex items-start justify-between gap-3">
                     <div>
                       <span className="border border-caramel/25 bg-wine/35 px-3 py-1 font-secondary text-[10px] font-bold uppercase tracking-[0.16em] text-caramel">
@@ -185,7 +186,8 @@ export default function ActivitiesPage() {
                       {activity.notes}
                     </p>
                   )}
-                </article>
+                  </article>
+                </Link>
               ))}
             </div>
           )}

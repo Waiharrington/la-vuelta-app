@@ -10,8 +10,9 @@ import {
   PlusCircle,
   User,
   LogOut,
-  Flame,
   ChevronRight,
+  BarChart3,
+  Route,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
@@ -19,7 +20,7 @@ const navItems = [
   { href: "/feed", icon: Home, label: "Inicio" },
   { href: "/activities", icon: Activity, label: "Actividades" },
   { href: "/tracker", icon: PlusCircle, label: "Grabar" },
-  { href: "/leaderboard", icon: Flame, label: "Ranking" },
+  { href: "/stats", icon: BarChart3, label: "Stats" },
   { href: "/profile", icon: User, label: "Perfil" },
 ];
 

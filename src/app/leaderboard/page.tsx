@@ -12,11 +12,10 @@ interface LeaderboardEntry {
   user_id: string;
   total_distance: number;
   total_runs: number;
-  profiles: {
-    full_name: string;
-    username: string;
-    avatar_url: string | null;
-  };
+  avg_pace: number;
+  full_name: string;
+  username: string;
+  avatar_url: string | null;
 }
 
 export default function LeaderboardPage() {
@@ -29,54 +28,14 @@ export default function LeaderboardPage() {
   useEffect(() => {
     const fetchLeaderboard = async () => {
       setLoading(true);
-      let query = supabase.from("activities").select("user_id, distance");
 
-      if (period === "week") {
-        const weekAgo = new Date();
-        weekAgo.setDate(weekAgo.getDate() - 7);
-        query = query.gte("created_at", weekAgo.toISOString());
-      } else if (period === "month") {
-        const monthAgo = new Date();
-        monthAgo.setMonth(monthAgo.getMonth() - 1);
-        query = query.gte("created_at", monthAgo.toISOString());
-      }
+      const { data, error } = await supabase.rpc("get_leaderboard", {
+        p_period: period,
+        p_limit: 20,
+      });
 
-      const { data: activities } = await query;
-
-      if (activities) {
-        const userStats: Record<string, { total_distance: number; total_runs: number }> = {};
-
-        activities.forEach((activity) => {
-          if (!userStats[activity.user_id]) {
-            userStats[activity.user_id] = { total_distance: 0, total_runs: 0 };
-          }
-          userStats[activity.user_id].total_distance += activity.distance;
-          userStats[activity.user_id].total_runs += 1;
-        });
-
-        const sorted = Object.entries(userStats)
-          .map(([user_id, stats]) => ({ user_id, ...stats }))
-          .sort((a, b) => b.total_distance - a.total_distance)
-          .slice(0, 20);
-
-        const userIds = sorted.map((entry) => entry.user_id);
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("id, full_name, username, avatar_url")
-          .in("id", userIds);
-
-        const profileMap = new Map(profiles?.map((profile) => [profile.id, profile]) || []);
-
-        setLeaders(
-          sorted.map((entry) => ({
-            ...entry,
-            profiles: profileMap.get(entry.user_id) || {
-              full_name: "Runner",
-              username: "runner",
-              avatar_url: null,
-            },
-          }))
-        );
+      if (!error && data) {
+        setLeaders(data as LeaderboardEntry[]);
       } else {
         setLeaders([]);
       }
@@ -174,19 +133,19 @@ export default function LeaderboardPage() {
 
                   <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-caramel/28 bg-chestnut">
                     <span className="font-display text-base text-cream">
-                      {entry.profiles?.full_name?.charAt(0) || "U"}
+                      {entry.full_name?.charAt(0) || "U"}
                     </span>
                   </div>
 
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-secondary text-sm font-bold text-cream">
-                      {entry.profiles?.full_name || "Runner"}
+                      {entry.full_name || "Runner"}
                       {entry.user_id === user?.id && (
                         <span className="ml-1 text-caramel">(Tú)</span>
                       )}
                     </p>
                     <p className="font-secondary text-xs text-wool/42">
-                      @{entry.profiles?.username || "runner"} · {entry.total_runs} carreras
+                      @{entry.username || "runner"} · {entry.total_runs} carreras
                     </p>
                   </div>
 

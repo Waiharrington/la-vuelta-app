@@ -1,22 +1,66 @@
 {
   "name": "La Vuelta Running Co.",
   "short_name": "La Vuelta",
-  "description": "Comunidad runner en Maracay. La vuelta se da juntos.",
+  "description": "Comunidad runner en Maracay. No importa tu ritmo. La vuelta se da juntos.",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#52130C",
   "theme_color": "#741717",
   "orientation": "portrait",
+  "categories": ["fitness", "health", "social"],
   "icons": [
     {
-      "src": "/icon-192.png",
+      "src": "/brand/logo-round.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
-      "src": "/icon-512.png",
+      "src": "/brand/logo-round.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/brand/hero-bg-v3.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Feed de actividad"
+    },
+    {
+      "src": "/brand/hero-bg-mobile-v3.png",
+      "sizes": "720x1280",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Tracker GPS"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Grabar actividad",
+      "short_name": "Grabar",
+      "url": "/tracker",
+      "icons": [
+        {
+          "src": "/brand/logo-round.png",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "Ver feed",
+      "short_name": "Feed",
+      "url": "/feed",
+      "icons": [
+        {
+          "src": "/brand/logo-round.png",
+          "sizes": "96x96"
+        }
+      ]
     }
   ]
 }

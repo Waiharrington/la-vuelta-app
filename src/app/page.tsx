@@ -85,7 +85,7 @@ export default function HomePage() {
             <div>
               <p className="section-kicker mb-4">Maracay, Venezuela</p>
               <h1 className="display-title max-w-4xl text-[clamp(4.4rem,13vw,9.5rem)]">
-                Strava con alma de La Vuelta.
+                Cada vuelta cuenta una historia.
               </h1>
               <p className="mt-6 max-w-xl font-secondary text-base font-medium leading-7 text-wool/82 sm:text-lg">
                 Registra tus rutas, comparte cada vuelta y compite con la comunidad.
