@@ -273,6 +273,16 @@ textarea {
   animation: like-bounce 400ms cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
+@keyframes success-pop {
+  0% { transform: scale(0); opacity: 0; }
+  50% { transform: scale(1.2); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.animate-success-pop {
+  animation: success-pop 500ms cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
 .comment-section {
   border-top: 1px solid rgba(196, 186, 179, 0.08);
   background: rgba(17, 17, 17, 0.22);
@@ -284,4 +294,239 @@ textarea {
       linear-gradient(180deg, rgba(82, 19, 12, 0.9), rgba(17, 17, 17, 0.97)),
       url("/brand/hero-bg-mobile-v3.png") center top / cover fixed;
   }
+}
+
+/* ──────── Page Transitions ──────── */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade-out {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(-8px); }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out forwards;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.4s ease-out forwards;
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.3s ease-out forwards;
+}
+
+/* Stagger children animations */
+.stagger-children > * {
+  opacity: 0;
+  animation: fade-in 0.3s ease-out forwards;
+}
+
+.stagger-children > *:nth-child(1) { animation-delay: 0ms; }
+.stagger-children > *:nth-child(2) { animation-delay: 50ms; }
+.stagger-children > *:nth-child(3) { animation-delay: 100ms; }
+.stagger-children > *:nth-child(4) { animation-delay: 150ms; }
+.stagger-children > *:nth-child(5) { animation-delay: 200ms; }
+.stagger-children > *:nth-child(6) { animation-delay: 250ms; }
+
+/* ──────── Skeleton Shimmer ──────── */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(196, 186, 179, 0.08) 0%,
+    rgba(196, 186, 179, 0.18) 50%,
+    rgba(196, 186, 179, 0.08) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.8s ease-in-out infinite;
+}
+
+/* ──────── Success Checkmark ──────── */
+@keyframes checkmark-draw {
+  0% { stroke-dashoffset: 50; }
+  100% { stroke-dashoffset: 0; }
+}
+
+@keyframes checkmark-circle {
+  0% { transform: scale(0); opacity: 0; }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.success-checkmark {
+  animation: checkmark-circle 0.4s ease-out forwards;
+}
+
+.success-checkmark path {
+  stroke-dasharray: 50;
+  stroke-dashoffset: 50;
+  animation: checkmark-draw 0.4s ease-out 0.2s forwards;
+}
+
+/* ──────── GPS Pulse ──────── */
+@keyframes gps-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.2); }
+}
+
+.gps-pulse {
+  animation: gps-pulse 1.5s ease-in-out infinite;
+}
+
+/* ──────── Number Count Up ──────── */
+@keyframes count-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.count-up {
+  animation: count-up 0.3s ease-out forwards;
+}
+
+/* ──────── Toggle Switch ──────── */
+.toggle-switch {
+  position: relative;
+  height: 1.5rem;
+  width: 2.75rem;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.toggle-switch .toggle-knob {
+  position: absolute;
+  top: 0.125rem;
+  height: 1.25rem;
+  width: 1.25rem;
+  background: #f4efea;
+  transition: transform 0.2s ease;
+}
+
+.toggle-switch.active {
+  background-color: #bd695d;
+}
+
+.toggle-switch.active .toggle-knob {
+  transform: translateX(1.375rem);
+}
+
+.toggle-switch:not(.active) {
+  background-color: rgba(196, 186, 179, 0.2);
+}
+
+.toggle-switch:not(.active) .toggle-knob {
+  transform: translateX(0.125rem);
+}
+
+/* ──────── Quick Note Chips ──────── */
+.note-chip {
+  border: 1px solid rgba(196, 186, 179, 0.12);
+  background: rgba(17, 17, 17, 0.3);
+  color: rgba(196, 186, 179, 0.58);
+  padding: 0.375rem 0.75rem;
+  font-family: var(--font-secondary);
+  font-size: 0.75rem;
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+
+.note-chip:hover {
+  border-color: rgba(196, 186, 179, 0.25);
+}
+
+.note-chip.selected {
+  border-color: rgba(189, 105, 93, 0.6);
+  background: rgba(116, 23, 23, 0.4);
+  color: #bd695d;
+}
+
+/* ──────── Card Press Effect ──────── */
+.press-effect {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.press-effect:active {
+  transform: scale(0.97);
+}
+
+/* ──────── Smooth Scrollbar ──────── */
+.smooth-scroll {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ──────── Focus Visible ──────── */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible {
+  outline: 2px solid rgba(189, 105, 93, 0.6);
+  outline-offset: 2px;
+}
+
+/* ──────── Improved Activity Card Hover ──────── */
+.activity-card {
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    border-color 180ms ease,
+    background 180ms ease;
+}
+
+.activity-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(189, 105, 93, 0.48);
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.26);
+}
+
+.activity-card:active {
+  transform: translateY(0);
+  transition-duration: 80ms;
+}
+
+/* ──────── Map Gradient Overlay ──────── */
+.map-gradient-overlay {
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    rgba(17, 17, 17, 0.65) 0%,
+    transparent 30%,
+    transparent 70%,
+    rgba(17, 17, 17, 0.82) 100%
+  );
+}
+
+/* ──────── Stats Trend Arrow ──────── */
+.trend-up {
+  color: #22c55e;
+}
+
+.trend-down {
+  color: #ef4444;
+}
+
+/* ──────── Haptic Feedback Visual ──────── */
+@keyframes haptic-flash {
+  0% { background-color: rgba(189, 105, 93, 0.3); }
+  100% { background-color: transparent; }
+}
+
+.haptic-flash {
+  animation: haptic-flash 0.3s ease-out;
 }

@@ -16,6 +16,7 @@ import { Navigation } from "@/components/navigation";
 import { useAuth } from "@/components/auth-provider";
 import { createClient } from "@/lib/supabase/client";
 import { formatDistance, formatDuration, formatPace, formatDate } from "@/lib/utils";
+import { FeedSkeleton, Skeleton } from "@/components/skeleton";
 
 interface Comment {
   id: string;
@@ -252,10 +253,30 @@ export default function FeedPage() {
 
   if (authLoading || loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-fire">
-        <div className="display-title text-2xl text-cream animate-pulse">
-          CARGANDO...
-        </div>
+      <div className="app-shell">
+        <Navigation />
+        <main className="px-4 pb-24 pt-20">
+          <div className="mx-auto max-w-5xl">
+            <div className="mb-5 overflow-hidden border border-wool/10 bg-wine/88 py-3">
+              <div className="flex whitespace-nowrap">
+                <span className="display-title px-5 text-lg text-wool/40 animate-pulse">CARGANDO...</span>
+              </div>
+            </div>
+            <div className="brand-panel mb-5 p-4">
+              <div className="flex gap-3">
+                <Skeleton className="h-10 w-10 shrink-0 rounded-full" />
+                <div className="flex-1 space-y-2">
+                  <Skeleton className="h-16 w-full" />
+                  <div className="flex justify-between">
+                    <Skeleton className="h-3 w-12" />
+                    <Skeleton className="h-8 w-20" />
+                  </div>
+                </div>
+              </div>
+            </div>
+            <FeedSkeleton />
+          </div>
+        </main>
       </div>
     );
   }

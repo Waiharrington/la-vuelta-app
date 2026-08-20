@@ -15,6 +15,7 @@ import { Navigation } from "@/components/navigation";
 import { useAuth } from "@/components/auth-provider";
 import { createClient } from "@/lib/supabase/client";
 import { formatDistance, formatDuration, formatPace } from "@/lib/utils";
+import { StatsCardSkeleton, Skeleton } from "@/components/skeleton";
 
 interface Activity {
   id: string;
@@ -58,10 +59,26 @@ export default function StatsPage() {
 
   if (authLoading || loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-fire">
-        <div className="display-title text-2xl text-cream animate-pulse">
-          CARGANDO...
-        </div>
+      <div className="app-shell">
+        <Navigation />
+        <main className="px-4 pb-24 pt-20">
+          <div className="mx-auto max-w-5xl">
+            <div className="brand-panel mb-5 p-5 sm:p-6">
+              <Skeleton className="h-4 w-24 mb-3" />
+              <Skeleton className="h-12 w-48" />
+            </div>
+            <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <StatsCardSkeleton />
+              <StatsCardSkeleton />
+              <StatsCardSkeleton />
+              <StatsCardSkeleton />
+            </div>
+            <div className="brand-panel mb-5 p-5">
+              <Skeleton className="h-4 w-32 mb-4" />
+              <Skeleton className="h-40 w-full" />
+            </div>
+          </div>
+        </main>
       </div>
     );
   }
