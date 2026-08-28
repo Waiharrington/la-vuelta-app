@@ -1,5 +1,5 @@
 -- =============================================
--- La Vuelta Running Co. - Supabase Schema
+-- La Vuelta Running Club - Supabase Schema
 -- Multi-Tenant: esquema dedicado "lavuelta"
 -- =============================================
 
@@ -256,8 +256,78 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- =============================================
--- CLUB DEFAULT: La Vuelta Running Co.
+-- CLUB DEFAULT: La Vuelta Running Club
 -- =============================================
 INSERT INTO lavuelta.clubs (name, slug, description)
-VALUES ('La Vuelta Running Co.', 'la-vuelta', 'Comunidad runner en Maracay. No importa tu ritmo. La vuelta se da juntos.')
+VALUES ('La Vuelta Running Club', 'la-vuelta', 'Comunidad runner en Maracay. No importa tu ritmo. La vuelta se da juntos.')
 ON CONFLICT (slug) DO NOTHING;
+
+-- =============================================
+-- TABLA DE PUBLICACIONES (POSTS)
+-- =============================================
+
+CREATE TABLE IF NOT EXISTS lavuelta.posts (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES lavuelta.profiles(id) ON DELETE CASCADE NOT NULL,
+  content TEXT NOT NULL CHECK (char_length(content) > 0 AND char_length(content) <= 500),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- RLS
+ALTER TABLE lavuelta.posts ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "posts_select" ON lavuelta.posts FOR SELECT USING (true);
+CREATE POLICY "posts_insert" ON lavuelta.posts FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "posts_delete" ON lavuelta.posts FOR DELETE USING (auth.uid() = user_id);
+
+-- Index
+CREATE INDEX IF NOT EXISTS idx_lavuelta_posts_user ON lavuelta.posts(user_id);
+CREATE INDEX IF NOT EXISTS idx_lavuelta_posts_created ON lavuelta.posts(created_at DESC);
+
+-- Permissions
+GRANT SELECT, INSERT, DELETE ON lavuelta.posts TO authenticated;
+GRANT SELECT ON lavuelta.posts TO anon;
+
+-- =============================================
+-- TABLA DE RUTAS GUARDADAS (SAVED ROUTES)
+-- =============================================
+
+CREATE TABLE IF NOT EXISTS lavuelta.saved_routes (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  name TEXT NOT NULL,
+  description TEXT,
+  distance NUMERIC NOT NULL,
+  duration NUMERIC,
+  route_coordinates JSONB NOT NULL,
+  is_public BOOLEAN DEFAULT true,
+  use_count NUMERIC DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Indexes
+CREATE INDEX IF NOT EXISTS idx_saved_routes_user ON lavuelta.saved_routes(user_id);
+CREATE INDEX IF NOT EXISTS idx_saved_routes_public ON lavuelta.saved_routes(is_public) WHERE is_public = true;
+
+-- RLS
+ALTER TABLE lavuelta.saved_routes ENABLE ROW LEVEL SECURITY;
+
+-- Public routes are readable by everyone
+CREATE POLICY "Public routes are readable by everyone"
+  ON lavuelta.saved_routes FOR SELECT
+  USING (is_public = true OR auth.uid() = user_id);
+
+-- Users can insert their own routes
+CREATE POLICY "Users can insert own routes"
+  ON lavuelta.saved_routes FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+-- Users can update their own routes
+CREATE POLICY "Users can update own routes"
+  ON lavuelta.saved_routes FOR UPDATE
+  USING (auth.uid() = user_id);
+
+-- Users can delete their own routes
+CREATE POLICY "Users can delete own routes"
+  ON lavuelta.saved_routes FOR DELETE
+  USING (auth.uid() = user_id);

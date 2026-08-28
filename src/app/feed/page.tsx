@@ -5,12 +5,14 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import {
   Clock,
   Heart,
+  ImageIcon,
   MapPin,
   MessageCircle,
   PlusCircle,
   Send,
-  Zap,
   Trash2,
+  X,
+  Zap,
 } from "lucide-react";
 import { Navigation } from "@/components/navigation";
 import { useAuth } from "@/components/auth-provider";
@@ -70,12 +72,27 @@ type FeedItem =
   | { kind: "activity"; data: Activity; date: string }
   | { kind: "post"; data: Post; date: string };
 
+function parsePostPhotos(content: string): { text: string; photos: string[] } {
+  const marker = content.match(/\n\n\[photos:(.+)\]\s*$/);
+  if (!marker) return { text: content, photos: [] };
+  try {
+    const photos = JSON.parse(marker[1]) as { url: string }[];
+    return { text: content.slice(0, marker.index), photos: photos.map((p) => p.url) };
+  } catch {
+    return { text: content, photos: [] };
+  }
+}
+
 export default function FeedPage() {
   const { user, loading: authLoading } = useAuth();
   const [feedItems, setFeedItems] = useState<FeedItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [newPost, setNewPost] = useState("");
   const [sendingPost, setSendingPost] = useState(false);
+  const [photoFiles, setPhotoFiles] = useState<File[]>([]);
+  const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
+  const [uploadingPhotos, setUploadingPhotos] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const supabase = createClient();
 
   const fetchFeed = useCallback(async () => {
@@ -96,32 +113,53 @@ export default function FeedPage() {
       .order("created_at", { ascending: false })
       .limit(20);
 
-    // Fetch likes for activities
+    // Fetch likes for activities (uses activity_id FK)
     const activityIds = activities?.map((a) => a.id) || [];
-    const postIds = posts?.map((p) => p.id) || [];
-    const allIds = [...activityIds, ...postIds];
 
-    const { data: allLikes } = await supabase
+    const { data: activityLikes } = await supabase
       .from("likes")
       .select("activity_id, user_id")
-      .in("activity_id", allIds);
+      .in("activity_id", activityIds);
 
-    const { data: allComments } = await supabase
+    const { data: activityComments } = await supabase
       .from("comments")
       .select("activity_id")
-      .in("activity_id", allIds);
+      .in("activity_id", activityIds);
 
-    // Build lookup maps
+    // Fetch likes for posts (uses post_id FK)
+    const postIds = posts?.map((p) => p.id) || [];
+
+    const { data: postLikes } = await supabase
+      .from("post_likes")
+      .select("post_id, user_id")
+      .in("post_id", postIds);
+
+    const { data: postComments } = await supabase
+      .from("post_comments")
+      .select("post_id")
+      .in("post_id", postIds);
+
+    // Build lookup maps for activities
     const likeCounts: Record<string, number> = {};
     const myLikes = new Set<string>();
-    allLikes?.forEach((like) => {
+    activityLikes?.forEach((like) => {
       likeCounts[like.activity_id] = (likeCounts[like.activity_id] || 0) + 1;
       if (like.user_id === user.id) myLikes.add(like.activity_id);
     });
 
     const commentCounts: Record<string, number> = {};
-    allComments?.forEach((c) => {
+    activityComments?.forEach((c) => {
       commentCounts[c.activity_id] = (commentCounts[c.activity_id] || 0) + 1;
+    });
+
+    // Build lookup maps for posts
+    postLikes?.forEach((like) => {
+      likeCounts[like.post_id] = (likeCounts[like.post_id] || 0) + 1;
+      if (like.user_id === user.id) myLikes.add(like.post_id);
+    });
+
+    postComments?.forEach((c) => {
+      commentCounts[c.post_id] = (commentCounts[c.post_id] || 0) + 1;
     });
 
     // Merge into feed items
@@ -164,15 +202,84 @@ export default function FeedPage() {
     fetchFeed();
   }, [fetchFeed]);
 
+  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    const remaining = 3 - photoFiles.length;
+    const valid = files.slice(0, remaining).filter((f) => f.type.startsWith("image/"));
+    if (!valid.length) return;
+
+    setPhotoFiles((prev) => [...prev, ...valid]);
+    valid.forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = (ev) => setPhotoPreviews((prev) => [...prev, ev.target?.result as string]);
+      reader.readAsDataURL(file);
+    });
+    e.target.value = "";
+  };
+
+  const removePhoto = (index: number) => {
+    setPhotoFiles((prev) => prev.filter((_, i) => i !== index));
+    setPhotoPreviews((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const uploadPhotos = async (userId: string): Promise<{ url: string }[]> => {
+    if (!photoFiles.length) return [];
+    setUploadingPhotos(true);
+    const timestamp = Date.now();
+    const uploaded: { url: string }[] = [];
+
+    for (let i = 0; i < photoFiles.length; i++) {
+      const file = photoFiles[i];
+      const ext = file.name.split(".").pop() || "jpg";
+      const path = `${userId}/posts/${timestamp}_${i}.${ext}`;
+
+      const { data, error } = await supabase.storage
+        .from("lavuelta_activities")
+        .upload(path, file, { contentType: file.type });
+
+      if (!error && data) {
+        const { data: urlData } = supabase.storage
+          .from("lavuelta_activities")
+          .getPublicUrl(data.path);
+        uploaded.push({ url: urlData.publicUrl });
+      }
+    }
+
+    setUploadingPhotos(false);
+    return uploaded;
+  };
+
   const handlePublish = async () => {
     if (!user || !newPost.trim() || sendingPost) return;
 
     setSendingPost(true);
+
+    // Ensure profile exists
+    const { data: existingProfile } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (!existingProfile) {
+      const username = user.email?.split("@")[0] || `user-${user.id.slice(0, 8)}`;
+      await supabase.from("profiles").insert({
+        id: user.id,
+        full_name: user.user_metadata?.full_name || username,
+        username,
+      });
+    }
+
+    const photos = await uploadPhotos(user.id);
+    const content = photos.length
+      ? `${newPost.trim()}\n\n[photos:${JSON.stringify(photos)}]`
+      : newPost.trim();
+
     const { data, error } = await supabase
       .from("posts")
       .insert({
         user_id: user.id,
-        content: newPost.trim(),
+        content,
       })
       .select("*, profiles(full_name, username, avatar_url)")
       .single();
@@ -192,6 +299,8 @@ export default function FeedPage() {
         ...prev,
       ]);
       setNewPost("");
+      setPhotoFiles([]);
+      setPhotoPreviews([]);
     }
     setSendingPost(false);
   };
@@ -225,16 +334,31 @@ export default function FeedPage() {
     );
 
     if (item.data.likedByMe) {
-      await supabase
-        .from("likes")
-        .delete()
-        .eq("user_id", user.id)
-        .eq("activity_id", itemId);
+      if (item.kind === "post") {
+        await supabase
+          .from("post_likes")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("post_id", itemId);
+      } else {
+        await supabase
+          .from("likes")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("activity_id", itemId);
+      }
     } else {
-      await supabase.from("likes").insert({
-        user_id: user.id,
-        activity_id: itemId,
-      });
+      if (item.kind === "post") {
+        await supabase.from("post_likes").insert({
+          user_id: user.id,
+          post_id: itemId,
+        });
+      } else {
+        await supabase.from("likes").insert({
+          user_id: user.id,
+          activity_id: itemId,
+        });
+      }
     }
   };
 
@@ -322,11 +446,53 @@ export default function FeedPage() {
                   rows={2}
                   maxLength={500}
                   className="brand-input resize-none text-sm"
+                  aria-label="Crear publicación"
                 />
+
+                {photoPreviews.length > 0 && (
+                  <div className="mt-2 flex gap-2">
+                    {photoPreviews.map((src, i) => (
+                      <div key={i} className="relative h-16 w-16 shrink-0 overflow-hidden border border-wool/12">
+                        <img src={src} alt="" className="h-full w-full object-cover" />
+                        <button
+                          onClick={() => removePhoto(i)}
+                          className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-dark/80 text-wool/60 hover:text-cream"
+                        >
+                          <X size={10} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 <div className="mt-2 flex items-center justify-between">
-                  <p className="font-secondary text-[10px] text-wool/32">
-                    {newPost.length}/500
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <p className="font-secondary text-[10px] text-wool/32">
+                      {newPost.length}/500
+                    </p>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      onChange={handlePhotoSelect}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={photoFiles.length >= 3 || uploadingPhotos}
+                      className="text-wool/32 transition-colors hover:text-caramel disabled:opacity-40"
+                      aria-label="Agregar fotos"
+                    >
+                      <ImageIcon size={16} />
+                    </button>
+                    {photoFiles.length > 0 && (
+                      <span className="font-secondary text-[10px] text-wool/32">
+                        {photoFiles.length}/3 fotos
+                      </span>
+                    )}
+                  </div>
                   <button
                     onClick={handlePublish}
                     disabled={!newPost.trim() || sendingPost}
@@ -429,6 +595,8 @@ function PostCard({
   const [showComments, setShowComments] = useState(false);
   const [bouncing, setBouncing] = useState(false);
 
+  const { text: displayText, photos } = parsePostPhotos(post.content);
+
   const handleLike = () => {
     onToggleLike(post.id);
     if (!post.likedByMe) {
@@ -476,15 +644,32 @@ function PostCard({
       </div>
 
       <div className="px-4 pb-3">
-        <p className="font-secondary text-sm leading-6 text-wool/82 whitespace-pre-wrap">
-          {post.content}
-        </p>
+        {displayText && (
+          <p className="font-secondary text-sm leading-6 text-wool/82 whitespace-pre-wrap">
+            {displayText}
+          </p>
+        )}
+        {photos.length > 0 && (
+          <div className={`mt-3 grid gap-1 ${photos.length === 1 ? "grid-cols-1" : "grid-cols-2"}`}>
+            {photos.map((url, i) => (
+              <img
+                key={i}
+                src={url}
+                alt="Foto de publicación"
+                className={`w-full rounded-sm object-cover ${
+                  photos.length === 3 && i === 0 ? "row-span-2 h-full" : "h-36"
+                }`}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="flex items-center gap-5 border-t border-wool/10 px-4 py-3">
         <button
           onClick={handleLike}
           className="flex items-center gap-1.5 font-secondary text-xs font-semibold transition-colors"
+          aria-pressed={post.likedByMe}
         >
           <Heart
             size={16}
@@ -518,6 +703,7 @@ function PostCard({
           activityId={post.id}
           userId={userId}
           onCommentAdded={() => onCommentAdded(post.id)}
+          kind="post"
         />
       )}
     </article>
@@ -539,6 +725,11 @@ function ActivityCard({
 }) {
   const [showComments, setShowComments] = useState(false);
   const [bouncing, setBouncing] = useState(false);
+  const [photoModalUrl, setPhotoModalUrl] = useState<string | null>(null);
+
+  // Extract photos from route_coordinates
+  const routeData = activity.route_coordinates as any;
+  const photos: string[] = routeData?.photos || [];
 
   const handleLike = () => {
     onToggleLike(activity.id);
@@ -615,11 +806,51 @@ function ActivityCard({
           </p>
         )}
 
+        {/* Activity Photos */}
+        {photos.length > 0 && (
+          <div className="mt-3 flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+            {photos.map((url, idx) => (
+              <button
+                key={idx}
+                onClick={() => setPhotoModalUrl(url)}
+                className="shrink-0 h-20 w-20 overflow-hidden border border-wool/15 hover:border-caramel/50 transition-colors"
+              >
+                <img
+                  src={url}
+                  alt={`Foto ${idx + 1}`}
+                  className="h-full w-full object-cover"
+                />
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Photo Modal */}
+        {photoModalUrl && (
+          <div
+            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/90 p-4"
+            onClick={() => setPhotoModalUrl(null)}
+          >
+            <img
+              src={photoModalUrl}
+              alt="Foto ampliada"
+              className="max-h-[85vh] max-w-full object-contain"
+            />
+            <button
+              className="absolute top-4 right-4 text-cream/70 hover:text-cream text-2xl"
+              onClick={() => setPhotoModalUrl(null)}
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
         {/* Action bar */}
         <div className="mt-4 flex items-center gap-5 border-t border-wool/10 pt-3">
           <button
             onClick={handleLike}
             className="flex items-center gap-1.5 font-secondary text-xs font-semibold transition-colors"
+            aria-pressed={activity.likedByMe}
           >
             <Heart
               size={16}
@@ -667,10 +898,12 @@ function CommentSection({
   activityId,
   userId,
   onCommentAdded,
+  kind = "activity",
 }: {
   activityId: string;
   userId: string;
   onCommentAdded: () => void;
+  kind?: "activity" | "post";
 }) {
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState("");
@@ -681,10 +914,12 @@ function CommentSection({
 
   useEffect(() => {
     const fetchComments = async () => {
+      const table = kind === "post" ? "post_comments" : "comments";
+      const idColumn = kind === "post" ? "post_id" : "activity_id";
       const { data } = await supabase
-        .from("comments")
+        .from(table)
         .select("*, profiles(full_name, username, avatar_url)")
-        .eq("activity_id", activityId)
+        .eq(idColumn, activityId)
         .order("created_at", { ascending: true });
 
       if (data) setComments(data as Comment[]);
@@ -693,7 +928,7 @@ function CommentSection({
     fetchComments();
 
     setTimeout(() => inputRef.current?.focus(), 100);
-  }, [activityId, supabase]);
+  }, [activityId, supabase, kind]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -702,11 +937,13 @@ function CommentSection({
 
     setSending(true);
 
+    const table = kind === "post" ? "post_comments" : "comments";
+    const idColumn = kind === "post" ? "post_id" : "activity_id";
     const { data, error } = await supabase
-      .from("comments")
+      .from(table)
       .insert({
         user_id: userId,
-        activity_id: activityId,
+        [idColumn]: activityId,
         content: trimmed,
       })
       .select("*, profiles(full_name, username, avatar_url)")
@@ -761,6 +998,7 @@ function CommentSection({
               onChange={(e) => setNewComment(e.target.value)}
               placeholder="Escribe un comentario..."
               className="flex-1 border border-wool/12 bg-dark/40 px-3 py-2 font-secondary text-xs text-cream outline-none transition-colors placeholder:text-wool/32 focus:border-caramel/50"
+              aria-label="Escribir comentario"
             />
             <button
               type="submit"

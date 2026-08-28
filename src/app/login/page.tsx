@@ -57,7 +57,7 @@ export default function LoginPage() {
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-dark px-5 py-8 text-cream">
       <Image
         src="/brand/origen-bg-desktop.png"
-        alt="Comunidad La Vuelta Running Co."
+        alt="Comunidad La Vuelta Running Club"
         fill
         priority
         className="object-cover"
@@ -130,6 +130,7 @@ export default function LoginPage() {
               onChange={(event) => setEmail(event.target.value)}
               required
               className="brand-input"
+              aria-label="Email"
             />
 
             <div className="relative">
@@ -140,6 +141,7 @@ export default function LoginPage() {
                 onChange={(event) => setPassword(event.target.value)}
                 required
                 className="brand-input pr-12"
+                aria-label="Contraseña"
               />
               <button
                 type="button"
@@ -154,6 +156,15 @@ export default function LoginPage() {
             <button type="submit" disabled={loading} className="brand-button w-full">
               {loading ? "Entrando..." : "Iniciar sesión"}
             </button>
+
+            <div className="text-center">
+              <Link
+                href="/forgot-password"
+                className="font-secondary text-xs text-wool/42 hover:text-wool"
+              >
+                ¿Olvidaste tu contraseña?
+              </Link>
+            </div>
           </form>
 
           <div className="mt-7 text-center font-secondary text-sm text-wool/62">

@@ -1,4 +1,4 @@
--- Saved Routes table for La Vuelta Running Co.
+-- Saved Routes table for La Vuelta Running Club
 -- Run this SQL on the Supabase VPS to create the table
 
 CREATE TABLE IF NOT EXISTS lavuelta.saved_routes (

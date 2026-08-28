@@ -6,6 +6,7 @@ import {
   TrendingUp,
   Calendar,
   Flame,
+  Mountain,
   Zap,
   Target,
   Award,
@@ -25,6 +26,7 @@ interface Activity {
   avg_pace: number;
   calories: number;
   created_at: string;
+  route_coordinates?: { coordinates?: { lat: number; lng: number; timestamp: number; altitude?: number | null }[]; elevation_gain?: number | null } | { lat: number; lng: number; timestamp: number; altitude?: number | null }[] | null;
 }
 
 interface WeekData {
@@ -105,6 +107,11 @@ export default function StatsPage() {
   const totalDistance = filtered.reduce((s, a) => s + a.distance, 0);
   const totalDuration = filtered.reduce((s, a) => s + a.duration, 0);
   const totalCalories = filtered.reduce((s, a) => s + (a.calories || 0), 0);
+  const totalElevation = filtered.reduce((s, a) => {
+    const rc = a.route_coordinates;
+    if (rc && !Array.isArray(rc) && rc.elevation_gain != null) return s + rc.elevation_gain;
+    return s;
+  }, 0);
   const avgPace =
     filtered.length > 0
       ? filtered.reduce((s, a) => s + a.avg_pace, 0) / filtered.length
@@ -221,7 +228,7 @@ export default function StatsPage() {
             <div className="metric-card p-4">
               <Zap size={18} className="mb-2 text-caramel" />
               <p className="display-title text-3xl text-caramel">
-                {avgPace > 0 ? formatPace(1000 / avgPace) : "0:00"}
+                {avgPace > 0 ? formatPace(avgPace) : "0:00"}
               </p>
               <p className="font-secondary text-[10px] font-bold uppercase tracking-[0.16em] text-wool/42">
                 Ritmo medio
@@ -237,6 +244,21 @@ export default function StatsPage() {
               </p>
             </div>
           </section>
+
+          {/* Elevation Card */}
+          {totalElevation > 0 && (
+            <section className="mb-5">
+              <div className="metric-card p-4">
+                <Mountain size={18} className="mb-2 text-green-400" />
+                <p className="display-title text-3xl text-green-400">
+                  {Math.round(totalElevation)}m
+                </p>
+                <p className="font-secondary text-[10px] font-bold uppercase tracking-[0.16em] text-wool/42">
+                  Desnivel positivo total
+                </p>
+              </div>
+            </section>
+          )}
 
           {/* Weekly Chart */}
           <section className="brand-panel mb-5 p-5">

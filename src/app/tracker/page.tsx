@@ -5,7 +5,7 @@ import { useAuth } from "@/components/auth-provider";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { formatDistance, formatDuration, formatPace } from "@/lib/utils";
-import { Activity, ChevronDown, ChevronUp, Clock, Flame, Lock, MapPin, Pause, Play, Square, Timer, Unlock, Zap } from "lucide-react";
+import { Activity, ChevronDown, ChevronUp, Clock, Flame, Heart, Lock, MapPin, Mountain, Pause, Play, Square, Timer, Unlock, Zap } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useRunNotifications } from "@/hooks/use-run-notifications";
 import LiveActivity from "@/lib/native-bridge";
@@ -23,12 +23,20 @@ interface Position {
   lat: number;
   lng: number;
   timestamp: number;
+  altitude?: number | null;
 }
 
 interface Split {
   km: number;
   time: number;
   pace: number;
+}
+
+interface HeartRateSensor {
+  heartRate: number;
+  start(): void;
+  stop(): void;
+  addEventListener(type: string, listener: (e: Event) => void): void;
 }
 
 const SILENT_AUDIO_SRC = "/silence.mp3";
@@ -52,6 +60,16 @@ export default function TrackerPage() {
   const [shareToFeed, setShareToFeed] = useState(true);
   const [saveAsRoute, setSaveAsRoute] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [activityPhotos, setActivityPhotos] = useState<string[]>([]);
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const [savedActivityId, setSavedActivityId] = useState<string | null>(null);
+  const [photoModalUrl, setPhotoModalUrl] = useState<string | null>(null);
+  const [heartRateReadings, setHeartRateReadings] = useState<number[]>([]);
+  const [manualHeartRate, setManualHeartRate] = useState("");
+  const [currentHeartRate, setCurrentHeartRate] = useState<number | null>(null);
+  const [elevationGain, setElevationGain] = useState(0);
+  const [maxPace, setMaxPace] = useState(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isTracking = trackingState === 'tracking' || trackingState === 'paused';
   const isPaused = trackingState === 'paused';
@@ -67,6 +85,7 @@ export default function TrackerPage() {
   const cadenceBufferRef = useRef<number[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const paceHistoryRef = useRef<number[]>([]);
+  const heartRateSensorRef = useRef<HeartRateSensor | null>(null);
   const supabase = createClient();
 
   // Setup audioSession category on mount if supported
@@ -78,6 +97,36 @@ export default function TrackerPage() {
         console.error("Failed to set audio session type:", e);
       }
     }
+  }, []);
+
+  // Heart Rate Sensor detection
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const w = window as any;
+    if ("HeartRateSensor" in w) {
+      try {
+        const sensor = new w.HeartRateSensor();
+        sensor.addEventListener("reading", () => {
+          const hr = sensor.heartRate;
+          if (hr && hr > 0) {
+            setCurrentHeartRate(hr);
+            setHeartRateReadings((prev) => [...prev, hr]);
+          }
+        });
+        sensor.addEventListener("error", (e: Event) => {
+          console.error("Heart rate sensor error:", e);
+        });
+        heartRateSensorRef.current = sensor;
+      } catch (e) {
+        console.log("Heart rate sensor not available:", e);
+      }
+    }
+    return () => {
+      if (heartRateSensorRef.current) {
+        heartRateSensorRef.current.stop();
+        heartRateSensorRef.current = null;
+      }
+    };
   }, []);
 
   // PWA notifications (Media Session + Wake Lock)
@@ -138,10 +187,12 @@ export default function TrackerPage() {
   const handlePositionUpdate = useCallback(
     (position: GeolocationPosition) => {
       const now = Date.now();
+      const altitude = position.coords.altitude;
       const newPos: Position = {
         lat: position.coords.latitude,
         lng: position.coords.longitude,
         timestamp: now,
+        altitude,
       };
 
       setPositions((prev) => {
@@ -228,7 +279,20 @@ export default function TrackerPage() {
                 if (paceHistoryRef.current.length > 6) {
                   paceHistoryRef.current.shift();
                 }
+
+                // Track max pace (fastest = lowest seconds per km)
+                if (instantPace > 0 && instantPace < 1200) {
+                  setMaxPace((prev) => (prev === 0 ? instantPace : Math.min(prev, instantPace)));
+                }
               }
+            }
+          }
+
+          // Track elevation gain
+          if (lastPositionRef.current && altitude != null && lastPositionRef.current.altitude != null) {
+            const altDiff = altitude - lastPositionRef.current.altitude;
+            if (altDiff > 0) {
+              setElevationGain((prev) => prev + altDiff);
             }
           }
         }
@@ -271,6 +335,10 @@ export default function TrackerPage() {
     setSplits([]);
     setCadence(0);
     paceHistoryRef.current = [];
+    setHeartRateReadings([]);
+    setCurrentHeartRate(null);
+    setElevationGain(0);
+    setMaxPace(0);
     startTimeRef.current = Date.now();
     pausedAtRef.current = 0;
     totalPausedRef.current = 0;
@@ -278,6 +346,11 @@ export default function TrackerPage() {
     lastKmRef.current = 0;
     splitStartRef.current = Date.now();
     cadenceBufferRef.current = [];
+
+    // Start heart rate sensor if available
+    if (heartRateSensorRef.current) {
+      try { heartRateSensorRef.current.start(); } catch (e) { /* ignore */ }
+    }
 
     watchRef.current = navigator.geolocation.watchPosition(
       handlePositionUpdate,
@@ -335,6 +408,8 @@ export default function TrackerPage() {
       setShareToFeed(true);
       setSaveAsRoute(false);
       setSaveSuccess(false);
+      setActivityPhotos([]);
+      setSavedActivityId(null);
       LiveActivity.stopActivity().catch(() => {});
       setTrackingState('idle');
     }
@@ -348,16 +423,46 @@ export default function TrackerPage() {
     const calories = Math.round(distance * 0.075);
     const distKm = (distance / 1000).toFixed(2);
 
+    // Ensure profile exists (FK constraint requires it)
+    const { data: existingProfile } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (!existingProfile) {
+      const username = user.email?.split("@")[0] || `user-${user.id.slice(0, 8)}`;
+      const { error: profileError } = await supabase.from("profiles").insert({
+        id: user.id,
+        full_name: user.user_metadata?.full_name || username,
+        username,
+      });
+      if (profileError) {
+        console.error("Failed to create profile:", profileError);
+        alert("Error: no se pudo crear tu perfil. Contacta al administrador.");
+        setSaving(false);
+        return;
+      }
+    }
+
+    // Calculate heart rate stats
+    const hrReadings = heartRateReadings.length > 0 ? heartRateReadings : (manualHeartRate ? [parseInt(manualHeartRate)] : []);
+    const avgHR = hrReadings.length > 0 ? Math.round(hrReadings.reduce((a, b) => a + b, 0) / hrReadings.length) : null;
+    const maxHR = hrReadings.length > 0 ? Math.max(...hrReadings) : null;
+
     // 1. Save activity
     const { data: activityData, error } = await supabase.from("activities").insert({
       user_id: user.id,
-      type: "run",
+      type: activityType,
       distance,
       duration: elapsedTime,
       avg_pace: avgPace,
+      avg_heart_rate: avgHR,
+      max_heart_rate: maxHR,
+      max_pace: maxPace > 0 ? maxPace : null,
       calories,
       notes: notes || null,
-      route_coordinates: positions,
+      route_coordinates: { coordinates: positions, elevation_gain: elevationGain > 0 ? Math.round(elevationGain) : null },
     }).select().single();
 
     if (error) {
@@ -369,11 +474,10 @@ export default function TrackerPage() {
 
     // 2. Auto-post to feed if enabled
     if (shareToFeed && activityData) {
-      const paceStr = avgPace > 0 ? formatPace(1000 / avgPace) : "0:00";
+      const paceStr = avgPace > 0 ? formatPace(avgPace) : "0:00";
       const postContent = `Corrí ${distKm}km en ${formatDuration(elapsedTime)} ⏱️ Ritmo: ${paceStr}/km #LaVuelta`;
       const { error: postError } = await supabase.from("posts").insert({
         user_id: user.id,
-        activity_id: activityData.id,
         content: postContent,
       });
       if (postError) console.error("Failed to create post:", postError);
@@ -387,28 +491,76 @@ export default function TrackerPage() {
         user_id: user.id,
         name: `Ruta del ${dateStr}`,
         distance,
-        route_coordinates: positions,
+      route_coordinates: { coordinates: positions, splits, elevation_gain: elevationGain > 0 ? Math.round(elevationGain) : null },
       });
       if (routeError) console.error("Failed to save route:", routeError);
     }
 
+    // Store activity ID for photo uploads
+    if (activityData) {
+      setSavedActivityId(activityData.id);
+    }
+
     // Show success animation briefly
     setSaveSuccess(true);
-
-    // Clean up after brief success display
-    setTimeout(() => {
-      setPositions([]);
-      setDistance(0);
-      setElapsedTime(0);
-      setNotes("");
-      setSplits([]);
-      LiveActivity.stopActivity().catch(() => {});
-      setTrackingState('idle');
-      setSaveSuccess(false);
-      window.location.href = "/feed";
-    }, 2000);
-
     setSaving(false);
+  };
+
+  const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0 || !savedActivityId || !user) return;
+
+    const remainingSlots = 5 - activityPhotos.length;
+    const filesToUpload = Array.from(files).slice(0, remainingSlots);
+    if (filesToUpload.length === 0) return;
+
+    setPhotoUploading(true);
+
+    for (let i = 0; i < filesToUpload.length; i++) {
+      const file = filesToUpload[i];
+      const ext = file.name.split('.').pop() || 'jpg';
+      const filePath = `${user.id}/${savedActivityId}/${activityPhotos.length + i}.${ext}`;
+
+      const { error } = await supabase.storage
+        .from('lavuelta_activities')
+        .upload(filePath, file, { upsert: true });
+
+      if (!error) {
+        const { data: urlData } = supabase.storage
+          .from('lavuelta_activities')
+          .getPublicUrl(filePath);
+
+        const newPhotos = [...activityPhotos, urlData.publicUrl];
+        setActivityPhotos(newPhotos);
+
+        // Update route_coordinates with photos array
+        const routeData = positions.length > 0
+          ? { coordinates: positions, splits, photos: newPhotos, elevation_gain: elevationGain > 0 ? Math.round(elevationGain) : null }
+          : { photos: newPhotos };
+
+        await supabase
+          .from('activities')
+          .update({ route_coordinates: routeData })
+          .eq('id', savedActivityId);
+      }
+    }
+
+    setPhotoUploading(false);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const navigateToFeed = () => {
+    setPositions([]);
+    setDistance(0);
+    setElapsedTime(0);
+    setNotes("");
+    setSplits([]);
+    setActivityPhotos([]);
+    setSavedActivityId(null);
+    LiveActivity.stopActivity().catch(() => {});
+    setTrackingState('idle');
+    setSaveSuccess(false);
+    window.location.href = "/feed";
   };
 
   // Helper formatting for Live Activity
@@ -467,6 +619,10 @@ export default function TrackerPage() {
     ? currentPace < avgRecentPace ? 'faster' : currentPace > avgRecentPace ? 'slower' : 'neutral'
     : 'neutral';
 
+  // Heart rate stats for summary view
+  const hrReadings = heartRateReadings.length > 0 ? heartRateReadings : (manualHeartRate ? [parseInt(manualHeartRate)] : []);
+  const avgHR = hrReadings.length > 0 ? Math.round(hrReadings.reduce((a, b) => a + b, 0) / hrReadings.length) : null;
+
   return (
     <div className="min-h-screen bg-dark">
       <Navigation />
@@ -519,7 +675,7 @@ export default function TrackerPage() {
                     <p className={`display-title text-2xl sm:text-3xl ${
                       paceTrend === 'faster' ? 'text-green-400' : paceTrend === 'slower' ? 'text-red-400' : 'text-caramel'
                     }`}>
-                      {avgPace > 0 ? formatPace(1000 / avgPace) : "0:00"}
+                      {avgPace > 0 ? formatPace(avgPace) : "0:00"}
                       {paceTrend === 'faster' && <ChevronUp size={14} className="inline ml-0.5" />}
                       {paceTrend === 'slower' && <ChevronDown size={14} className="inline ml-0.5" />}
                     </p>
@@ -551,7 +707,7 @@ export default function TrackerPage() {
                   <div className="metric-card p-2.5 sm:p-3">
                     <Zap size={13} className="mb-1 text-caramel" />
                     <p className="display-title text-xl text-caramel sm:text-2xl">
-                      {avgPace > 0 ? formatPace(1000 / avgPace) : "0:00"}
+                      {avgPace > 0 ? formatPace(avgPace) : "0:00"}
                     </p>
                     <p className="font-secondary text-[8px] uppercase tracking-[0.15em] text-wool/42">
                       Ritmo/km
@@ -562,41 +718,75 @@ export default function TrackerPage() {
 
               {/* Secondary stats (visible during tracking) */}
               {isTracking && (
-                <div className="mt-2 grid grid-cols-4 gap-2 border-t border-wool/10 pt-2">
-                  <div className="text-center">
-                    <p className="font-secondary text-lg font-bold text-cream">
-                      {cadence > 0 ? cadence : "--"}
-                    </p>
-                    <p className="font-secondary text-[8px] uppercase tracking-[0.12em] text-wool/38">
-                      Cadencia
-                    </p>
-                  </div>
-                  <div className="text-center">
-                    <p className="font-secondary text-lg font-bold text-cream">
-                      {currentKm}
-                    </p>
-                    <p className="font-secondary text-[8px] uppercase tracking-[0.12em] text-wool/38">
-                      Km actual
-                    </p>
-                  </div>
-                  <div className="text-center">
-                    <p className="font-secondary text-lg font-bold text-caramel">
-                      {lastSplit ? formatPace(lastSplit.pace) : "--:--"}
-                    </p>
-                    <p className="font-secondary text-[8px] uppercase tracking-[0.12em] text-wool/38">
-                      Último km
-                    </p>
-                  </div>
-                  <div className="text-center">
-                    <div className="flex items-center justify-center gap-1">
-                      <Flame size={12} className="text-orange-400" />
-                      <p className="font-secondary text-lg font-bold text-orange-400">
-                        {calories}
+                <div className="mt-2 space-y-2 border-t border-wool/10 pt-2">
+                  <div className="grid grid-cols-4 gap-2">
+                    <div className="text-center">
+                      <p className="font-secondary text-lg font-bold text-cream">
+                        {cadence > 0 ? cadence : "--"}
+                      </p>
+                      <p className="font-secondary text-[8px] uppercase tracking-[0.12em] text-wool/38">
+                        Cadencia
                       </p>
                     </div>
-                    <p className="font-secondary text-[8px] uppercase tracking-[0.12em] text-wool/38">
-                      Calorías
-                    </p>
+                    <div className="text-center">
+                      <p className="font-secondary text-lg font-bold text-cream">
+                        {currentKm}
+                      </p>
+                      <p className="font-secondary text-[8px] uppercase tracking-[0.12em] text-wool/38">
+                        Km actual
+                      </p>
+                    </div>
+                    <div className="text-center">
+                      <p className="font-secondary text-lg font-bold text-caramel">
+                        {lastSplit ? formatPace(lastSplit.pace) : "--:--"}
+                      </p>
+                      <p className="font-secondary text-[8px] uppercase tracking-[0.12em] text-wool/38">
+                        Último km
+                      </p>
+                    </div>
+                    <div className="text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <Flame size={12} className="text-orange-400" />
+                        <p className="font-secondary text-lg font-bold text-orange-400">
+                          {calories}
+                        </p>
+                      </div>
+                      <p className="font-secondary text-[8px] uppercase tracking-[0.12em] text-wool/38">
+                        Calorías
+                      </p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <Heart size={12} className="text-red-400" />
+                        <p className="font-secondary text-lg font-bold text-red-400">
+                          {currentHeartRate ?? "--"}
+                        </p>
+                      </div>
+                      <p className="font-secondary text-[8px] uppercase tracking-[0.12em] text-wool/38">
+                        Pulso
+                      </p>
+                    </div>
+                    <div className="text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <Mountain size={12} className="text-green-400" />
+                        <p className="font-secondary text-lg font-bold text-green-400">
+                          {elevationGain > 0 ? `${Math.round(elevationGain)}m` : "--"}
+                        </p>
+                      </div>
+                      <p className="font-secondary text-[8px] uppercase tracking-[0.12em] text-wool/38">
+                        D+ Acum.
+                      </p>
+                    </div>
+                    <div className="text-center">
+                      <p className="font-secondary text-lg font-bold text-caramel">
+                        {maxPace > 0 ? formatPace(maxPace) : "--:--"}
+                      </p>
+                      <p className="font-secondary text-[8px] uppercase tracking-[0.12em] text-wool/38">
+                        Ritmo máx
+                      </p>
+                    </div>
                   </div>
                 </div>
               )}
@@ -725,11 +915,57 @@ export default function TrackerPage() {
                   </div>
                   <p className="display-title text-xl text-cream">¡Carrera guardada!</p>
                   <p className="font-secondary text-sm text-wool/50 mt-1">Tu actividad fue registrada</p>
+
+                  {/* Photo Upload Section */}
+                  <div className="mt-4 w-full max-w-xs">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      onChange={handlePhotoSelect}
+                      className="hidden"
+                    />
+                    {activityPhotos.length < 5 && (
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={photoUploading}
+                        className="ghost-button w-full py-2 px-4 text-xs text-caramel border-caramel/30 disabled:opacity-50"
+                      >
+                        {photoUploading ? (
+                          <span className="flex items-center justify-center gap-2">
+                            <span className="h-3 w-3 border-2 border-caramel/30 border-t-caramel rounded-full animate-spin" />
+                            Subiendo...
+                          </span>
+                        ) : (
+                          <span className="flex items-center justify-center gap-2">
+                            📷 Agregar fotos ({activityPhotos.length}/5)
+                          </span>
+                        )}
+                      </button>
+                    )}
+
+                    {/* Photo Thumbnails */}
+                    {activityPhotos.length > 0 && (
+                      <div className="mt-3 flex gap-2 justify-center">
+                        {activityPhotos.map((url, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => setPhotoModalUrl(url)}
+                            className="h-14 w-14 overflow-hidden border border-wool/20 hover:border-caramel/50 transition-colors"
+                          >
+                            <img src={url} alt={`Foto ${idx + 1}`} className="h-full w-full object-cover" />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
                   <button
                     onClick={() => {
-                      const shareText = `Corrí ${(distance / 1000).toFixed(2)}km en ${formatDuration(elapsedTime)} ⏱️ Ritmo: ${avgPace > 0 ? formatPace(1000 / avgPace) : "0:00"}/km #LaVuelta`;
+                      const shareText = `Corrí ${(distance / 1000).toFixed(2)}km en ${formatDuration(elapsedTime)} ⏱️ Ritmo: ${avgPace > 0 ? formatPace(avgPace) : "0:00"}/km #LaVuelta`;
                       if (navigator.share) {
-                        navigator.share({ title: "La Vuelta Running Co.", text: shareText });
+                        navigator.share({ title: "La Vuelta Running Club", text: shareText });
                       } else {
                         navigator.clipboard.writeText(shareText);
                         alert("¡Link copiado al portapapeles!");
@@ -739,6 +975,32 @@ export default function TrackerPage() {
                   >
                     Compartir
                   </button>
+                  <button
+                    onClick={navigateToFeed}
+                    className="font-secondary text-xs text-wool/42 hover:text-wool mt-3 underline"
+                  >
+                    Ir al feed →
+                  </button>
+
+                  {/* Photo Modal */}
+                  {photoModalUrl && (
+                    <div
+                      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/90 p-4"
+                      onClick={() => setPhotoModalUrl(null)}
+                    >
+                      <img
+                        src={photoModalUrl}
+                        alt="Foto ampliada"
+                        className="max-h-[85vh] max-w-full object-contain"
+                      />
+                      <button
+                        className="absolute top-4 right-4 text-cream/70 hover:text-cream text-2xl"
+                        onClick={() => setPhotoModalUrl(null)}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <>
@@ -760,8 +1022,24 @@ export default function TrackerPage() {
                       <p className="font-secondary text-[9px] uppercase text-wool/42">Tiempo</p>
                     </div>
                     <div className="metric-card p-3 text-center">
-                      <p className="display-title text-2xl text-caramel">{avgPace > 0 ? formatPace(1000 / avgPace) : "0:00"}</p>
+                      <p className="display-title text-2xl text-caramel">{avgPace > 0 ? formatPace(avgPace) : "0:00"}</p>
                       <p className="font-secondary text-[9px] uppercase text-wool/42">Ritmo/km</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="metric-card p-3 text-center">
+                      <p className="display-title text-2xl text-caramel">{maxPace > 0 ? formatPace(maxPace) : "—"}</p>
+                      <p className="font-secondary text-[9px] uppercase text-wool/42">Ritmo máx</p>
+                    </div>
+                    <div className="metric-card p-3 text-center">
+                      <p className="display-title text-2xl text-green-400">{elevationGain > 0 ? `${Math.round(elevationGain)}m` : "—"}</p>
+                      <p className="font-secondary text-[9px] uppercase text-wool/42">D+ Acum.</p>
+                    </div>
+                    <div className="metric-card p-3 text-center">
+                      <p className="display-title text-2xl text-red-400">
+                        {hrReadings.length > 0 ? `${avgHR}` : (manualHeartRate || "—")}
+                      </p>
+                      <p className="font-secondary text-[9px] uppercase text-wool/42">FC media</p>
                     </div>
                   </div>
 
@@ -797,27 +1075,55 @@ export default function TrackerPage() {
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
                     className="brand-input text-sm"
+                    aria-label="Nota personal"
                   />
+
+                  {/* Manual Heart Rate Input */}
+                  {heartRateReadings.length === 0 && (
+                    <div>
+                      <label className="font-secondary text-[10px] font-bold uppercase tracking-[0.16em] text-wool/42 mb-1.5 block">
+                        Ritmo cardíaco (opcional)
+                      </label>
+                      <input
+                        type="number"
+                        placeholder="BPM (ej. 155)"
+                        value={manualHeartRate}
+                        onChange={(e) => setManualHeartRate(e.target.value)}
+                        min="40"
+                        max="220"
+                        className="brand-input text-sm"
+                        aria-label="Ritmo cardíaco manual"
+                      />
+                    </div>
+                  )}
 
                   {/* Toggles */}
                   <div className="space-y-2">
                     <label className="flex items-center justify-between border border-wool/10 bg-dark/30 px-4 py-3 cursor-pointer">
                       <span className="font-secondary text-sm text-cream">Compartir en el feed</span>
-                      <div
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={shareToFeed}
+                        aria-label="Compartir en el feed"
                         onClick={() => setShareToFeed(!shareToFeed)}
                         className={`relative h-6 w-11 transition-colors ${shareToFeed ? 'bg-caramel' : 'bg-wool/20'}`}
                       >
                         <div className={`absolute top-0.5 h-5 w-5 bg-cream transition-transform ${shareToFeed ? 'translate-x-5' : 'translate-x-0.5'}`} />
-                      </div>
+                      </button>
                     </label>
                     <label className="flex items-center justify-between border border-wool/10 bg-dark/30 px-4 py-3 cursor-pointer">
                       <span className="font-secondary text-sm text-cream">Guardar como ruta</span>
-                      <div
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={saveAsRoute}
+                        aria-label="Guardar como ruta"
                         onClick={() => setSaveAsRoute(!saveAsRoute)}
                         className={`relative h-6 w-11 transition-colors ${saveAsRoute ? 'bg-caramel' : 'bg-wool/20'}`}
-                      >
+                       >
                         <div className={`absolute top-0.5 h-5 w-5 bg-cream transition-transform ${saveAsRoute ? 'translate-x-5' : 'translate-x-0.5'}`} />
-                      </div>
+                      </button>
                     </label>
                   </div>
 

@@ -1,6 +1,6 @@
 # Reemplazar Ranking por Feed Social Comunitario
 
-La Vuelta Running Co. quiere fomentar **comunidad**, no competencia. El leaderboard actual contradice esa filosofía. Vamos a eliminarlo y convertir el feed en el corazón social de la app, con likes y comentarios funcionales.
+La Vuelta Running Club quiere fomentar **comunidad**, no competencia. El leaderboard actual contradice esa filosofía. Vamos a eliminarlo y convertir el feed en el corazón social de la app, con likes y comentarios funcionales.
 
 ## Resumen del Cambio
 
@@ -46,8 +46,8 @@ La Vuelta Running Co. quiere fomentar **comunidad**, no competencia. El leaderbo
 
 ### Leaderboard
 
-#### [DELETE] [page.tsx](file:///c:/Users/Waiha/OneDrive/Desktop/la-vuelta-app/src/app/leaderboard/page.tsx)
-- Eliminar la página de leaderboard completa (ya no se necesita)
+#### ~~[DELETE] [page.tsx](file:///c:/Users/Waiha/OneDrive/Desktop/la-vuelta-app/src/app/leaderboard/page.tsx)~~ ✅ COMPLETADO
+- ~~Eliminar la página de leaderboard completa (ya no se necesita)~~ — Página y directorio eliminados, references removed from middleware, service worker, and PROJECT-HANDOFF.md
 
 ---
 

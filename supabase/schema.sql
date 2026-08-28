@@ -1,4 +1,4 @@
--- La Vuelta Running Co. - Supabase Schema
+-- La Vuelta Running Club - Supabase Schema
 -- Run this in your Supabase SQL Editor
 
 -- Enable UUID extension

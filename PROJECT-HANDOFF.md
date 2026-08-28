@@ -1,8 +1,8 @@
-# La Vuelta Running Co. - Project Handoff
+# La Vuelta Running Club - Project Handoff
 
 ## Project Overview
 
-**La Vuelta Running Co.** is a running club web application built for a running club based in Maracay, Venezuela. The app enables runners to track GPS activities, share them on a social feed, compete on leaderboards, and build community — all with the brand identity of La Vuelta Running Co.
+**La Vuelta Running Club** is a running club web application built for a running club based in Maracay, Venezuela. The app enables runners to track GPS activities, share them on a social feed, build community through clubs and events, and monitor their training progress — all with the brand identity of La Vuelta Running Club.
 
 - **Live URL**: https://lavuelta-app.vercel.app
 - **GitHub**: https://github.com/andreadigitaljobs-arch/la-vuelta-app
@@ -22,8 +22,10 @@
 | Maps | Leaflet + React-Leaflet | 1.9.4 / 5.0 |
 | Icons | Lucide React | 1.23 |
 | Dates | date-fns | 4.4 |
+| Native | Capacitor | 8.4 |
 | Deployment | Vercel | Hobby Plan |
 | PWA | Service Worker + Web Manifest | Yes |
+| Testing | Vitest | 4.x |
 
 ---
 
@@ -76,29 +78,60 @@ la-vuelta-app/
 │   │   ├── not-found.tsx            # 404 page
 │   │   ├── login/page.tsx           # Login (email + Google OAuth)
 │   │   ├── register/page.tsx        # Register (email + Google OAuth)
-│   │   ├── auth/callback/route.ts   # OAuth callback handler
+│   │   ├── forgot-password/page.tsx # Password recovery
+│   │   ├── reset-password/page.tsx  # Password reset form
+│   │   ├── auth/callback/           # OAuth callback
 │   │   ├── feed/page.tsx            # Social feed (posts + activities)
 │   │   ├── tracker/page.tsx         # GPS activity recorder + Leaflet map
-│   │   ├── activities/page.tsx      # Activity history + personal stats
-│   │   ├── leaderboard/page.tsx     # Ranking system (weekly/monthly/all)
-│   │   └── profile/page.tsx         # User profile page
+│   │   ├── activities/page.tsx      # Activity history
+│   │   ├── activities/[id]/page.tsx # Activity detail with map, splits, comments
+│   │   ├── stats/page.tsx           # Training stats with charts
+│   │   ├── profile/page.tsx         # User profile (view + edit)
+│   │   ├── users/[id]/page.tsx      # Public user profiles
+│   │   ├── search/page.tsx          # People + activity search
+│   │   ├── settings/page.tsx        # Account settings
+│   │   ├── clubs/                   # Club management
+│   │   │   ├── page.tsx             # Club listing
+│   │   │   ├── new/page.tsx         # Create club
+│   │   │   └── [slug]/page.tsx      # Club detail
+│   │   ├── events/                  # Event management
+│   │   │   ├── page.tsx             # Event listing
+│   │   │   ├── new/page.tsx         # Create event
+│   │   │   ├── [id]/page.tsx        # Event detail
+│   │   │   └── [id]/edit/page.tsx   # Edit event
+│   │   ├── routes/                  # Saved routes
+│   │   │   ├── page.tsx             # Route listing
+│   │   │   └── [id]/page.tsx        # Route detail with map
+│   │   ├── terms/page.tsx           # Terms of service
+│   │   ├── privacy/page.tsx         # Privacy policy
+│   │   └── api/push/register/       # Push notification subscription
 │   ├── components/
 │   │   ├── auth-provider.tsx        # React context for auth state
 │   │   ├── navigation.tsx           # Bottom tab navigation bar
 │   │   ├── map-view.tsx             # Leaflet map component (dynamic import)
-│   │   └── pwa-register.tsx         # Service worker registration
+│   │   ├── pwa-register.tsx         # Service worker registration
+│   │   ├── push-notification-prompt.tsx # Push notification opt-in
+│   │   ├── error-boundary.tsx       # React error boundary
+│   │   └── skeleton.tsx             # Loading skeleton components
 │   ├── hooks/
-│   │   └── use-run-notifications.ts # Media Session API + Wake Lock hook
+│   │   ├── use-run-notifications.ts # Media Session API + Wake Lock
+│   │   └── use-follow.ts            # Follow/unfollow logic
 │   ├── lib/
 │   │   ├── supabase/
 │   │   │   ├── client.ts            # Browser client (schema: lavuelta)
 │   │   │   ├── server.ts            # Server client (schema: lavuelta)
 │   │   │   └── middleware.ts        # Auth middleware (session + route protection)
+│   │   ├── types.ts                 # Shared TypeScript interfaces
 │   │   └── utils.ts                 # formatDistance, formatDuration, formatPace, formatDate
-│   └── middleware.ts                 # Next.js middleware entry point
+│   └── middleware.ts                # Next.js middleware entry point
 ├── supabase/
-│   ├── lavuelta-schema.sql          # Full database schema (reference copy)
-│   └── posts-table.sql              # Posts table DDL
+│   ├── lavuelta-schema.sql          # Full database schema (all tables)
+│   ├── posts-table.sql              # Posts table DDL (standalone)
+│   ├── saved-routes-table.sql       # Saved routes DDL (standalone)
+│   └── post-likes-comments.sql      # Post-specific likes/comments tables
+├── ios/                             # Capacitor iOS project
+├── vitest.config.ts                 # Test configuration
+├── capacitor.config.ts              # Capacitor config
 ├── PROJECT-HANDOFF.md               # This file
 ├── .env.local                       # Supabase credentials
 ├── .env.local.example               # Template for env vars
@@ -120,23 +153,27 @@ All tables live in a dedicated `lavuelta` schema (multi-tenant architecture).
 |-------|---------|
 | `lavuelta.profiles` | User profiles (linked to `auth.users` via UUID) |
 | `lavuelta.activities` | GPS-tracked runs/walks/bikes/hikes |
-| `lavuelta.likes` | Likes on activities and posts |
-| `lavuelta.comments` | Comments on activities and posts |
+| `lavuelta.likes` | Likes on activities |
+| `lavuelta.comments` | Comments on activities |
+| `lavuelta.post_likes` | Likes on text posts |
+| `lavuelta.post_comments` | Comments on text posts |
 | `lavuelta.follows` | User follow relationships |
-| `lavuelta.clubs` | Running clubs (default: La Vuelta Running Co.) |
+| `lavuelta.clubs` | Running clubs (default: La Vuelta Running Club) |
 | `lavuelta.club_members` | Club membership with roles |
 | `lavuelta.events` | Club events (runs, meetups) |
 | `lavuelta.event_participants` | Event RSVPs |
-| `lavuelta.posts` | Text-only social posts (max 500 chars) |
+| `lavuelta.posts` | Text + photo social posts (max 500 chars) |
+| `lavuelta.saved_routes` | User-saved GPS routes |
 
 ### Key Design Decisions
 
 - **Schema isolation**: All tables in `lavuelta` schema, not `public`
-- **PostgREST search path**: `PGRST_DB_EXTRA_SEARCH_PATH=lavuelta,public` — eliminates need for `Content-Profile` header forwarding through Kong
+- **PostgREST search path**: `PGRST_DB_EXTRA_SEARCH_PATH=lavuelta,public`
 - **RLS enabled on all tables** with policies for public read + owner CRUD
-- **Auto-profile trigger**: `lavuelta.handle_new_user()` creates a profile row when a user signs up via `auth.users`
-- **Leaderboard RPC**: `lavuelta.get_leaderboard(period, limit)` returns ranked users by distance
-- **Polymorphic likes/comments**: `likes.activity_id` and `comments.activity_id` are used for both activities and posts (same column, reused)
+- **Auto-profile trigger**: `lavuelta.handle_new_user()` creates a profile row on signup
+- **Split likes/comments**: Activity likes use `likes`/`comments` (FK to activities), post likes use `post_likes`/`post_comments` (FK to posts)
+- **JSONB route data**: `route_coordinates` stores `{ coordinates, splits, elevation_gain, photos }` in a single JSONB field
+- **Photos in content**: Posts embed photo URLs as `[photos:{"url":"..."}]` markers in the content field
 
 ### RLS Policies Summary
 
@@ -144,6 +181,8 @@ All tables live in a dedicated `lavuelta` schema (multi-tenant architecture).
 - **Activities**: Public read (if public), owner CRUD
 - **Likes**: Public read, owner insert/delete
 - **Comments**: Public read, owner insert/delete
+- **Post Likes**: Public read, owner insert/delete
+- **Post Comments**: Public read, owner insert/delete
 - **Posts**: Public read, owner insert/update/delete
 - **Follows**: Public read, owner insert/delete
 - **Clubs**: Public read, creator manage
@@ -156,7 +195,7 @@ All tables live in a dedicated `lavuelta` schema (multi-tenant architecture).
 | Bucket | Public | Purpose |
 |--------|--------|---------|
 | `lavuelta_avatars` | Yes | User profile pictures |
-| `lavuelta_activities` | Yes | Activity-related images |
+| `lavuelta_activities` | Yes | Activity photos, post photos |
 
 ---
 
@@ -165,22 +204,14 @@ All tables live in a dedicated `lavuelta` schema (multi-tenant architecture).
 ### Self-Hosted Instance
 
 - **URL**: https://supabase.somosdostudio.com
-- **VPS**: 62.171.160.75 (SSH: root, key: `C:\Users\Waiha\.ssh\supabasesomos2_ed25519`)
+- **VPS**: 62.171.160.75
 - **Docker compose**: `/opt/supabase/docker/docker-compose.yml`
-- **Env file**: `/opt/supabase/docker/.env`
 
 ### API Keys (stored in `.env.local`)
 
 ```
 NEXT_PUBLIC_SUPABASE_URL=https://supabase.somosdostudio.com
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhoa2VhZ3VhbXl6aWFtcGp2d2NlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMzNjIwODcsImV4cCI6MjA5ODcyMjA4N30.69WjpEEUZvjDHyeE-5_8qUhxuf3BR35cOOXb43EI6jo
-```
-
-### PostgREST Configuration (Kong)
-
-```yaml
-PGRST_DB_SCHEMAS=lavuelta,public,storage,graphql_public,astrobarber,janastudio,pandabarber
-PGRST_DB_EXTRA_SEARCH_PATH=lavuelta,public
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 ```
 
 ### SSH Commands Reference
@@ -192,9 +223,6 @@ ssh -i C:\Users\Waiha\.ssh\supabasesomos2_ed25519 root@62.171.160.75
 # Execute SQL on Supabase
 scp -i C:\Users\Waiha\.ssh\supabasesomos2_ed25519 file.sql root@62.171.160.75:/tmp/
 ssh -i C:\Users\Waiha\.ssh\supabasesomos2_ed25519 root@62.171.160.75 "docker exec -i supabase-db psql -U postgres -f /tmp/file.sql"
-
-# Restart Kong (after config changes)
-ssh root@62.171.160.75 "cd /opt/supabase/docker && docker compose restart kong"
 ```
 
 ---
@@ -205,94 +233,147 @@ ssh root@62.171.160.75 "cd /opt/supabase/docker && docker compose restart kong"
 
 1. **Email/Password** — Standard Supabase auth
 2. **Google OAuth** — Configured via Supabase Dashboard > Auth > Providers
-
-### Google OAuth Setup
-
-- **Client ID**: `632190521976-arbh01tu8du9r9tlnkuraekhhonr8n3n.apps.googleusercontent.com`
-- **Client Secret**: (stored in Supabase Dashboard)
-- **Redirect URIs** (need to configure in Google Cloud Console):
-  - `https://supabase.somosdostudio.com/auth/v1/callback`
-  - `https://lavuelta-app.vercel.app/auth/callback`
+3. **Password Recovery** — Email-based reset flow via `/forgot-password`
 
 ### Route Protection
 
-The middleware (`src/lib/supabase/middleware.ts`) handles:
+The middleware (`src/lib/supabase/middleware.ts`) protects:
 
-- **Protected routes**: `/feed`, `/activities`, `/tracker`, `/leaderboard`, `/profile` — redirects to `/login` if not authenticated
+- **Protected routes**: `/feed`, `/activities`, `/tracker`, `/profile`, `/settings`, `/stats`, `/routes`
 - **Auth pages**: `/login`, `/register` — redirects to `/feed` if already authenticated
-- **Public routes**: `/` (landing page), `/auth/callback`
-
-### OAuth Callback
-
-`src/app/auth/callback/route.ts` handles the OAuth redirect:
-- Exchanges the auth code for a session
-- Redirects to `/feed` on success
-- Redirects to `/login?error=...` on failure
+- **Public routes**: `/`, `/clubs`, `/events`, `/search`, `/terms`, `/privacy`
 
 ---
 
 ## Pages & Features
 
 ### Landing Page (`/`)
-- Hero section with brand imagery
-- Animated ticker with brand values
+- Hero section with brand imagery (desktop + mobile)
+- Animated ticker with brand values ("Nadie corre con ego", etc.)
+- Feature preview cards (GPS, Feed, Stats, Club)
 - CTA buttons to login/register
-- Brand colors and fonts on display
+- Auto-redirect to `/feed` if authenticated
 
-### Login (`/login`)
-- Email/password form with show/hide password toggle
-- Google OAuth button
-- Link to register page
-
-### Register (`/register`)
-- Email/password form with confirmation
-- Google OAuth button
-- Link to login page
+### Authentication
+- **Login** (`/login`): Email/password with show/hide toggle, Google OAuth
+- **Register** (`/register`): Full name, username, email, password, Google OAuth
+- **Forgot Password** (`/forgot-password`): Email input, sends reset link
+- **Reset Password** (`/reset-password`): New password + confirmation
 
 ### Social Feed (`/feed`)
-- Post creation box (textarea, max 500 chars, "Publicar" button)
-- Displays posts and activities from the community, sorted by date
+- Post creation (textarea, 500 char limit, photo attachments)
+- Activity cards with distance, time, pace, type badge
+- Text post cards with optional photo grid (1-3 images)
 - Like functionality with optimistic UI + bounce animation
-- Comment section (expandable per item)
+- Expandable comment sections
 - Delete button on own posts
+- User profile links on every card
 
-### Activity Tracker (`/tracker`)
-- GPS recording using browser Geolocation API
-- Real-time map display via Leaflet (dynamic import)
-- Tracking controls: start, pause, resume, stop
-- Stats panel: distance, time, pace, cadence estimation (from GPS speed, ~0.75m stride)
-- **Kilometer splits**: records time and pace for each completed kilometer
-- **Haptic feedback**: vibration on start, km milestones (pattern 200-100-200-100-400), stop
-- **Media Session API**: notification bar shows `CORRIENDO — X.XX km` / `PAUSADO` with time and pace
-- **Screen Wake Lock**: screen stays on during tracking, re-acquires on visibility change
-- Saves activity at **0m distance** (no minimum), with route coordinates, distance, duration, pace, splits
+### GPS Activity Tracker (`/tracker`)
+- GPS recording using browser Geolocation API (high accuracy)
+- Real-time Leaflet map with live polyline and position marker
+- Activity type selector: Run / Walk / Hike
+- Pause/Resume/Stop controls
+- Live stats: distance, time, pace, cadence, heart rate, elevation gain, max pace
+- Kilometer splits with pace comparison
+- Haptic feedback on start, km milestones, stop
+- Media Session API: lock screen shows CORRIENDO/PAUSADO with stats
+- Screen Wake Lock: stays on during tracking
+- Screen Lock toggle: prevents accidental touches
+- Post-activity: photo upload (1-5 images), save to feed, save as route
+- Share via Web Share API or clipboard
 
 ### Activity History (`/activities`)
-- List of user's past activities
-- Personal stats: total distance, total runs, avg pace
-- Activity detail cards
+- User's past activities with summary stats
+- Total distance, total runs, avg pace, total calories
 
-### Leaderboard (`/leaderboard`)
-- Weekly, monthly, and all-time rankings
-- Based on `lavuelta.get_leaderboard()` RPC function
-- Shows distance, run count, and avg pace per user
+### Activity Detail (`/activities/[id]`)
+- Full-page view with Leaflet map and route polyline
+- Detailed stats: distance, time, pace, calories, speed, estimated steps/min
+- Kilometer splits table with pace comparison
+- Heart rate stats (avg/max) if available
+- Elevation gain (D+) if available
+- Photo gallery (horizontal scrollable)
+- Likes and comments
+- Share button
+
+### Training Stats (`/stats`)
+- Period filter: Week / Month / Year
+- Summary cards: distance, runs, avg pace, calories
+- Weekly bar chart (last 8 weeks)
+- Running streak with 7-day visual
+- Personal records: longest run, fastest pace, best week
+- Elevation total for period
 
 ### Profile (`/profile`)
-- Banner, stats, info rows
-- Activity count and stats
+- Banner, avatar (upload supported), name, username, bio
+- Inline edit mode for profile fields
+- Stats grid: total distance, total runs, followers, following
+- Info rows: email, location, member since, club
+
+### User Profiles (`/users/[id]`)
+- Public profile view for other users
+- Follow/Unfollow with optimistic UI
+- Stats and recent activities
+
+### Search (`/search`)
+- Debounced search (300ms)
+- Tabs: Personas / Actividades
+- People search: queries full_name and username
+- Activity search: queries public activity notes
+
+### Settings (`/settings`)
+- Account: email (read-only), password reset link, logout
+- Profile editing (name, username, bio, location)
+- Notification preferences (push, email)
+- About section (version, club info, links)
+- Danger zone: account deletion (contact support)
+
+### Clubs (`/clubs`)
+- Club listing: user's clubs + discoverable clubs
+- Create new club (name, description, auto-slug)
+- Club detail: header, members list, join/leave
+- Admin badges for club creators
+
+### Events (`/events`)
+- Event listing with tabs: Próximos / Mis Eventos / Pasados
+- Create event: title, description, date/time, location, distance target, club association
+- Event detail: map preview, RSVP buttons (Asistir/Tal vez/No puedo), attendee lists
+- Edit event (creator only)
+
+### Saved Routes (`/routes`)
+- User's saved routes from activities
+- Community routes
+- Route detail with Leaflet map, stats, share button
+
+### Error Handling
+- `error-boundary.tsx`: React error boundary with dark-themed fallback
+- `global-error.tsx`: Root-level error boundary
+- `not-found.tsx`: 404 page with "Página no encontrada"
 
 ### PWA Features
-- **Web App Manifest** (`public/manifest.json`): name, icons, shortcuts, screenshots
-- **Service Worker** (`public/sw.js`): offline caching, stale-while-revalidate
-- **PWA Register** component: auto-registers service worker on mount
-- **Media Session API** (`use-run-notifications` hook): lock screen / notification bar stats
-- **Screen Wake Lock**: prevents screen dimming during GPS tracking
-- **Haptic Feedback**: vibration patterns for key events
+- Web App Manifest with icons and shortcuts
+- Service Worker: stale-while-revalidate caching, precaches 20+ routes
+- Push notifications (opt-in via prompt)
+- Media Session API for lock screen stats
+- Screen Wake Lock during tracking
+- Haptic feedback patterns
 
 ### Navigation
-- Fixed header with logo + logout
-- Bottom tab bar with 5 tabs: Feed, Tracker, Activities, Leaderboard, Profile
-- Active state highlighting
+- Fixed header with logo, settings gear, logout
+- Bottom tab bar with 8 tabs: Inicio, Actividades, Grabar (elevated), Eventos, Clubs, Buscar, Rutas, Perfil
+- Active state highlighting with accent bar
+
+---
+
+## Environment Variables
+
+| Variable | Required | Purpose |
+|----------|----------|---------|
+| `NEXT_PUBLIC_SUPABASE_URL` | Yes | Supabase instance URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase anonymous key |
+| `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` | Optional | Google Maps for event locations |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | Optional | Web Push notifications |
 
 ---
 
@@ -302,7 +383,6 @@ The middleware (`src/lib/supabase/middleware.ts`) handles:
 
 - **Production URL**: https://lavuelta-app.vercel.app
 - **Account**: `waiharrington`
-- **Scope**: `waiharringtons-projects`
 
 ### Deploy Command
 
@@ -310,120 +390,46 @@ The middleware (`src/lib/supabase/middleware.ts`) handles:
 vercel --prod --yes
 ```
 
-### Environment Variables (Vercel)
-
-| Key | Value | Environment |
-|-----|-------|-------------|
-| `NEXT_PUBLIC_SUPABASE_URL` | `https://supabase.somosdostudio.com` | production |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | (see .env.local) | production |
-
 ### Known Deployment Issues
 
-1. **Preview deploys fail**: Environment variables are only set for `production`, not `preview`. Always deploy with `--prod` flag.
-2. **Hobby Plan SSO Block**: The `andreadigitaljobs-arch` account's team had SSO protection that blocked deployments. Fixed by deploying under `waiharrington`.
-3. **Middleware Deprecation**: Next.js 16 deprecated `middleware.ts` in favor of `proxy`. Works fine but should be migrated.
-4. **Commit Author Block**: Vercel Hobby plan blocks Git-triggered deploys when commit author lacks project access. Use CLI deploys.
+1. **Preview deploys fail**: Env vars only set for `production`. Always deploy with `--prod`.
+2. **Middleware Deprecation**: Next.js 16 deprecated `middleware.ts` in favor of `proxy`. Works but should be migrated.
+3. **Commit Author Block**: Vercel Hobby plan blocks Git-triggered deploys when commit author lacks access. Use CLI deploys.
 
 ### GitHub
 
 - **Repo**: `https://github.com/andreadigitaljobs-arch/la-vuelta-app`
-- **Visibility**: Public
 - **Branch**: `master`
-- **Git Author** (configured locally):
-  ```
-  user.name: andreadigitaljobs-arch
-  user.email: andreadigitaljobs@gmail.com
-  ```
 
 ---
 
 ## What's Left / Next Steps
 
-### Immediate (P0)
-
-1. **Configure Google Cloud Console** — Add Vercel domain as authorized redirect URI:
-   - `https://lavuelta-app.vercel.app/auth/callback`
-2. **Configure Supabase Auth** — Set Site URL in Dashboard > Auth > Configuration:
-   - `https://lavuelta-app.vercel.app`
-3. **Test end-to-end** — Register, login, Google OAuth, track activity, view feed
-
-### Short-term (P1)
-
-4. **Migrate middleware to proxy** — Next.js 16 deprecated `middleware.ts` in favor of `proxy`
-5. **Add custom domain** — Point a `lavuelta.app` or similar domain to Vercel
-6. **Activity images** — Allow users to attach photos to activities (storage bucket already configured)
-7. **Push notifications** — For new followers, comments, event invites
-8. **Post image uploads** — Allow photo attachments on social posts
-
-### Medium-term (P2)
-
-9. **Club management** — Allow users to create/manage clubs (schema supports it, UI not built yet)
-10. **Event creation UI** — Calendar view for upcoming club runs
-11. **Activity detail page** — Full-page view with map replay, stats, comments
-12. **User settings page** — Edit profile, notification preferences, account deletion
-13. **Search** — Find users, clubs, activities
-
 ### Long-term (P3)
 
-14. **Native app (Swift)** — Dynamic Island, lock screen widgets, Health Kit integration
-15. **Offline support** — Cache activities for offline tracking
-16. **Training plans** — Structured workout programs
-17. **Challenges** — Weekly/monthly distance or run-count challenges
+1. **Migrate middleware to proxy** — Next.js 16 deprecated `middleware.ts` in favor of `proxy`
+2. **Custom domain** — Point `lavuelta.app` to Vercel
+3. **Native app (Swift)** — Dynamic Island, lock screen widgets, Health Kit integration
+4. **Offline support** — Cache activities for offline tracking
+5. **Training plans** — Structured workout programs
+6. **Challenges** — Weekly/monthly distance or run-count challenges
+7. **Activity replay** — Animated map replay of completed runs
+8. **Heart rate sensor integration** — Connect to Bluetooth HR monitors via Web Bluetooth API
 
 ---
 
-## Troubleshooting
+## Testing
 
-### App shows "Login - Vercel" instead of the app
-- SSO protection is enabled on the Vercel project
-- Run: `vercel project protection disable --sso --scope waiharringtons-projects`
+Run tests with:
 
-### Deploy says "Blocked"
-- The Git commit author doesn't have Vercel project access
-- Fix: Deploy via CLI (`vercel deploy`) instead of Git push
+```bash
+npm test
+```
 
-### 404 on all routes
-- Environment variables not set in Vercel
-- Run: `vercel env add NEXT_PUBLIC_SUPABASE_URL production --value "https://supabase.somosdostudio.com" --scope waiharringtons-projects`
-
-### Supabase returns empty or errors
-- Check PostgREST config includes `lavuelta` in search path
-- SSH into VPS and check: `docker exec supabase-db psql -U postgres -c "\dn"` (should list `lavuelta`)
-- Verify RLS policies: `docker exec supabase-db psql -U postgres -c "SELECT * FROM pg_policies WHERE schemaname = 'lavuelta'"`
-
-### Build fails with "NEXT_PUBLIC_SUPABASE_URL" missing
-- Env vars need to be set for the correct Vercel environment
-- For preview deploys, env vars are NOT set — always deploy with `--prod`
-
-### AuthProvider SSR error during build
-- `createBrowserClient()` was called at module level in `auth-provider.tsx`
-- Fixed by moving it inside the `useEffect` callback
+Current test coverage:
+- `src/lib/__tests__/utils.test.ts` — 23 tests for utility functions
+- `src/components/__tests__/error-boundary.test.tsx` — 4 tests for error boundary
 
 ---
 
-## Key Files Reference
-
-| File | Purpose |
-|------|---------|
-| `src/app/layout.tsx` | Root layout with fonts, AuthProvider, PWARegister |
-| `src/app/globals.css` | Brand colors, animations, Leaflet overrides |
-| `src/app/feed/page.tsx` | Social feed with posts + activity cards |
-| `src/app/tracker/page.tsx` | GPS tracker with splits, haptic, wake lock |
-| `src/lib/supabase/client.ts` | Browser Supabase client |
-| `src/lib/supabase/server.ts` | Server Supabase client |
-| `src/lib/supabase/middleware.ts` | Auth middleware with route protection |
-| `src/components/auth-provider.tsx` | Auth context provider |
-| `src/components/navigation.tsx` | Bottom tab navigation |
-| `src/components/map-view.tsx` | Leaflet map (dynamic import) |
-| `src/components/pwa-register.tsx` | Service worker registration |
-| `src/hooks/use-run-notifications.ts` | Media Session API + Wake Lock |
-| `src/lib/utils.ts` | Formatting helpers |
-| `public/manifest.json` | PWA manifest |
-| `public/sw.js` | Service worker |
-| `supabase/lavuelta-schema.sql` | Full database schema |
-| `supabase/posts-table.sql` | Posts table DDL |
-| `.env.local` | Supabase credentials |
-
----
-
-*Document updated July 8, 2026*
+*Document updated August 27, 2026*

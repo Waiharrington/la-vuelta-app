@@ -9,10 +9,14 @@ import {
   Activity,
   PlusCircle,
   User,
+  Users,
   LogOut,
   ChevronRight,
-  BarChart3,
   Route,
+  Calendar,
+  Settings,
+  Search,
+  Map,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
@@ -20,7 +24,10 @@ const navItems = [
   { href: "/feed", icon: Home, label: "Inicio" },
   { href: "/activities", icon: Activity, label: "Actividades" },
   { href: "/tracker", icon: PlusCircle, label: "Grabar" },
-  { href: "/stats", icon: BarChart3, label: "Stats" },
+  { href: "/events", icon: Calendar, label: "Eventos" },
+  { href: "/clubs", icon: Users, label: "Clubs" },
+  { href: "/search", icon: Search, label: "Buscar" },
+  { href: "/routes", icon: Map, label: "Rutas" },
   { href: "/profile", icon: User, label: "Perfil" },
 ];
 
@@ -53,13 +60,22 @@ export function Navigation() {
               </span>
             </div>
           </Link>
-          <button
-            onClick={handleLogout}
-            aria-label="Cerrar sesión"
-            className="flex h-10 w-10 items-center justify-center border border-wool/10 bg-dark/35 text-wool/60 transition-colors hover:border-caramel/40 hover:text-cream"
-          >
-            <LogOut size={20} />
-          </button>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/settings"
+              aria-label="Ajustes"
+              className="flex h-10 w-10 items-center justify-center border border-wool/10 bg-dark/35 text-wool/60 transition-colors hover:border-caramel/40 hover:text-cream"
+            >
+              <Settings size={20} />
+            </Link>
+            <button
+              onClick={handleLogout}
+              aria-label="Cerrar sesión"
+              className="flex h-10 w-10 items-center justify-center border border-wool/10 bg-dark/35 text-wool/60 transition-colors hover:border-caramel/40 hover:text-cream"
+            >
+              <LogOut size={20} />
+            </button>
+          </div>
         </div>
       </header>
 
@@ -72,6 +88,7 @@ export function Navigation() {
               <Link
                 key={item.href}
                 href={item.href}
+                aria-label={item.label}
                 className={cn(
                   "group relative flex min-w-14 flex-col items-center gap-1 px-2 py-2 transition-colors",
                   isRecord

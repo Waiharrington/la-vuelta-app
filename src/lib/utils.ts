@@ -23,11 +23,10 @@ export function formatDuration(seconds: number): string {
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
-export function formatPace(metersPerSecond: number): string {
-  if (metersPerSecond === 0) return "0:00";
-  const paceSeconds = 1000 / metersPerSecond;
-  const mins = Math.floor(paceSeconds / 60);
-  const secs = Math.floor(paceSeconds % 60);
+export function formatPace(secondsPerKm: number): string {
+  if (secondsPerKm === 0) return "0:00";
+  const mins = Math.floor(secondsPerKm / 60);
+  const secs = Math.floor(secondsPerKm % 60);
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 

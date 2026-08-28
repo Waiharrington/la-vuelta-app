@@ -65,7 +65,7 @@ export default function RegisterPage() {
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-dark px-5 py-8 text-cream">
       <Image
         src="/brand/hero-bg-v3.png"
-        alt="La Vuelta Running Co."
+        alt="La Vuelta Running Club"
         fill
         priority
         className="object-cover"
@@ -138,6 +138,7 @@ export default function RegisterPage() {
               onChange={(event) => setFullName(event.target.value)}
               required
               className="brand-input"
+              aria-label="Nombre completo"
             />
             <input
               type="text"
@@ -148,6 +149,7 @@ export default function RegisterPage() {
               }
               required
               className="brand-input"
+              aria-label="Nombre de usuario"
             />
             <input
               type="email"
@@ -156,6 +158,7 @@ export default function RegisterPage() {
               onChange={(event) => setEmail(event.target.value)}
               required
               className="brand-input"
+              aria-label="Email"
             />
             <div className="relative">
               <input
@@ -166,6 +169,7 @@ export default function RegisterPage() {
                 required
                 minLength={6}
                 className="brand-input pr-12"
+                aria-label="Contraseña"
               />
               <button
                 type="button"

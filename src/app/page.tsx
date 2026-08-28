@@ -40,7 +40,7 @@ export default function HomePage() {
       <section className="relative flex min-h-screen overflow-hidden">
         <Image
           src="/brand/hero-bg-v3.png"
-          alt="Corredores de La Vuelta Running Co."
+          alt="Corredores de La Vuelta Running Club"
           fill
           priority
           className="hidden object-cover md:block"
@@ -48,7 +48,7 @@ export default function HomePage() {
         />
         <Image
           src="/brand/hero-bg-mobile-v3.png"
-          alt="Corredores de La Vuelta Running Co."
+          alt="Corredores de La Vuelta Running Club"
           fill
           priority
           className="object-cover md:hidden"
@@ -72,7 +72,7 @@ export default function HomePage() {
               <div>
                 <p className="display-title text-2xl tracking-[0.08em]">LA VUELTA</p>
                 <p className="font-secondary text-[10px] font-bold uppercase tracking-[0.28em] text-caramel">
-                  Running Co.
+Running Club
                 </p>
               </div>
             </div>

@@ -93,7 +93,7 @@ export function useRunNotifications({
     navigator.mediaSession.metadata = new MediaMetadata({
       title: `${status} — ${formatDist(distance)} km`,
       artist: `${formatTime(elapsedTime)} · ${formatPaceStr(avgPace)} /km`,
-      album: "La Vuelta Running Co.",
+      album: "La Vuelta Running Club",
       artwork: [
         {
           src: "/brand/logo-round.png",
@@ -116,7 +116,7 @@ export function useRunNotifications({
       navigator.mediaSession.metadata = new MediaMetadata({
         title: `${status} — ${formatDist(distance)} km`,
         artist: `${formatTime(elapsedTime)} · ${formatPaceStr(avgPace)} /km`,
-        album: "La Vuelta Running Co.",
+        album: "La Vuelta Running Club",
         artwork: [
           {
             src: "/brand/logo-round.png",

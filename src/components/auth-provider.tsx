@@ -14,6 +14,23 @@ const AuthContext = createContext<AuthContextType>({
   loading: true,
 });
 
+async function ensureProfile(supabase: ReturnType<typeof createClient>, user: User) {
+  const { data } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (!data) {
+    const username = user.email?.split("@")[0] || `user-${user.id.slice(0, 8)}`;
+    await supabase.from("profiles").insert({
+      id: user.id,
+      full_name: user.user_metadata?.full_name || username,
+      username,
+    });
+  }
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -24,14 +41,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const getUser = async () => {
       const { data } = await supabase.auth.getUser();
       setUser(data.user);
+      if (data.user) {
+        await ensureProfile(supabase, data.user);
+      }
       setLoading(false);
     };
 
     getUser();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
+      async (_event, session) => {
         setUser(session?.user ?? null);
+        if (session?.user) {
+          await ensureProfile(supabase, session.user);
+        }
         setLoading(false);
       }
     );

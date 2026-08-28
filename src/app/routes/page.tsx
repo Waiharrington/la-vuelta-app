@@ -84,6 +84,22 @@ export default function RoutesPage() {
   const handleSaveFromActivity = async (activityId: string) => {
     if (!user) return;
 
+    // Ensure profile exists
+    const { data: existingProfile } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (!existingProfile) {
+      const username = user.email?.split("@")[0] || `user-${user.id.slice(0, 8)}`;
+      await supabase.from("profiles").insert({
+        id: user.id,
+        full_name: user.user_metadata?.full_name || username,
+        username,
+      });
+    }
+
     const { data: activity } = await supabase
       .from("activities")
       .select("*")

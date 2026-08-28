@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { ComponentType } from "react";
 import {
@@ -48,6 +48,9 @@ export default function ProfilePage() {
     location: "",
   });
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const supabase = createClient();
 
   const { followerCount, followingCount } = useFollow(user?.id, user?.id);
@@ -133,6 +136,45 @@ export default function ProfilePage() {
     setEditing(false);
   };
 
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+
+    setAvatarError(null);
+    setUploading(true);
+
+    try {
+      const ext = file.name.split(".").pop() || "jpg";
+      const filePath = `${user.id}/avatar.${ext}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("lavuelta_avatars")
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage
+        .from("lavuelta_avatars")
+        .getPublicUrl(filePath);
+
+      const publicUrl = urlData.publicUrl;
+
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update({ avatar_url: publicUrl })
+        .eq("id", user.id);
+
+      if (updateError) throw updateError;
+
+      setProfile((prev) => (prev ? { ...prev, avatar_url: publicUrl } : prev));
+    } catch (err) {
+      setAvatarError("Error al subir la imagen. Intenta de nuevo.");
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
   if (authLoading || loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-fire">
@@ -157,14 +199,37 @@ export default function ProfilePage() {
             <div className="px-5 pb-6">
               <div className="-mt-12 mb-4 flex items-end justify-between gap-4">
                 <div className="relative">
-                  <div className="flex h-24 w-24 items-center justify-center rounded-full border-2 border-caramel bg-chestnut shadow-xl shadow-dark/30">
-                    <span className="font-display text-4xl text-cream uppercase">
-                      {initial}
-                    </span>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleAvatarUpload}
+                    className="hidden"
+                  />
+                  <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border-2 border-caramel bg-chestnut shadow-xl shadow-dark/30">
+                    {profile?.avatar_url ? (
+                      <img
+                        src={profile.avatar_url}
+                        alt={profile.full_name || "Avatar"}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <span className="font-display text-4xl text-cream uppercase">
+                        {initial}
+                      </span>
+                    )}
                   </div>
                   {editing && (
-                    <button className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-full border border-caramel/40 bg-wine text-cream">
-                      <Camera size={14} />
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploading}
+                      className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-full border border-caramel/40 bg-wine text-cream disabled:opacity-50"
+                    >
+                      {uploading ? (
+                        <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-cream border-t-transparent" />
+                      ) : (
+                        <Camera size={14} />
+                      )}
                     </button>
                   )}
                 </div>
@@ -210,6 +275,7 @@ export default function ProfilePage() {
                     }
                     placeholder="Tu nombre"
                     className="brand-input"
+                    aria-label="Nombre completo"
                   />
                   <input
                     type="text"
@@ -219,6 +285,7 @@ export default function ProfilePage() {
                     }
                     placeholder="username"
                     className="brand-input"
+                    aria-label="Nombre de usuario"
                   />
                   <textarea
                     value={editData.bio}
@@ -228,6 +295,7 @@ export default function ProfilePage() {
                     placeholder="Tu bio..."
                     rows={3}
                     className="brand-input resize-none"
+                    aria-label="Biografía"
                   />
                   <input
                     type="text"
@@ -237,6 +305,7 @@ export default function ProfilePage() {
                     }
                     placeholder="Tu ubicación"
                     className="brand-input"
+                    aria-label="Ubicación"
                   />
                 </div>
               ) : (
@@ -256,6 +325,12 @@ export default function ProfilePage() {
               )}
             </div>
           </section>
+
+          {avatarError && (
+            <div className="mb-5 rounded-lg border border-fire/30 bg-fire/10 px-4 py-3 text-center font-secondary text-sm text-fire">
+              {avatarError}
+            </div>
+          )}
 
           {/* Stats + Followers */}
           <section className="mb-5 grid grid-cols-4 gap-3">
@@ -311,7 +386,7 @@ export default function ProfilePage() {
                   : "2026"
               }
             />
-            <InfoRow icon={User} label="Club" value="La Vuelta Running Co." />
+            <InfoRow icon={User} label="Club" value="La Vuelta Running Club" />
           </section>
         </div>
       </main>

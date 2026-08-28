@@ -10,6 +10,7 @@ import {
   Flame,
   Heart,
   MapPin,
+  Mountain,
   MessageCircle,
   Send,
   TrendingUp,
@@ -37,10 +38,14 @@ interface Activity {
   distance: number;
   duration: number;
   avg_pace: number;
+  avg_heart_rate: number | null;
+  max_heart_rate: number | null;
+  max_pace: number | null;
   calories: number;
   notes: string | null;
   created_at: string;
-  route_coordinates: { lat: number; lng: number; timestamp: number }[] | null;
+  photos?: string[];
+  route_coordinates: { lat: number; lng: number; timestamp: number; altitude?: number | null }[] | { coordinates: { lat: number; lng: number; timestamp: number; altitude?: number | null }[]; elevation_gain?: number | null } | null;
   splits: { km: number; time: number; pace: number }[] | null;
   profiles: {
     full_name: string;
@@ -74,6 +79,7 @@ export default function ActivityDetailPage() {
   const [loading, setLoading] = useState(true);
   const [newComment, setNewComment] = useState("");
   const [sending, setSending] = useState(false);
+  const [photoModalUrl, setPhotoModalUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -183,16 +189,25 @@ export default function ActivityDetailPage() {
     );
   }
 
-  const positions = activity.route_coordinates || [];
-  const splits = activity.splits || [];
+  // Extract photos from route_coordinates
+  const routeData = activity.route_coordinates as any;
+  const positions = Array.isArray(routeData) ? routeData : routeData?.coordinates || [];
+  const splits: { km: number; time: number; pace: number }[] = routeData?.splits || [];
   const isOwner = user?.id === activity.user_id;
-  const elevation = positions.length > 1
-    ? positions.reduce((acc, p, i) => {
-        if (i === 0) return 0;
-        const diff = Math.abs((p as any).alt - (positions[i - 1] as any).alt || 0);
-        return acc + (diff > 0 ? diff : 0);
-      }, 0)
-    : 0;
+  const photos: string[] = routeData?.photos || activity.photos || [];
+
+  const elevation = routeData?.elevation_gain != null
+    ? routeData.elevation_gain
+    : (positions.length > 1
+        ? positions.reduce((acc: number, p: { lat: number; lng: number; timestamp: number; altitude?: number | null; alt?: number | null }, i: number) => {
+            if (i === 0) return 0;
+            const alt1 = p.altitude ?? p.alt ?? null;
+            const alt2 = positions[i - 1].altitude ?? positions[i - 1].alt ?? null;
+            if (alt1 == null || alt2 == null) return acc;
+            const diff = alt1 - alt2;
+            return acc + (diff > 0 ? diff : 0);
+          }, 0)
+        : 0);
 
   return (
     <div className="app-shell">
@@ -220,6 +235,48 @@ export default function ActivityDetailPage() {
               <div className="h-72 sm:h-96">
                 <MapView positions={positions as any} />
               </div>
+            </div>
+          )}
+
+          {/* Photo Gallery */}
+          {photos.length > 0 && (
+            <div className="brand-panel mb-5 p-4">
+              <p className="section-kicker mb-3">Fotos de la actividad</p>
+              <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 scrollbar-hide">
+                {photos.map((url, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setPhotoModalUrl(url)}
+                    className="shrink-0 h-28 w-28 overflow-hidden border border-wool/15 hover:border-caramel/50 transition-colors"
+                  >
+                    <img
+                      src={url}
+                      alt={`Foto ${idx + 1}`}
+                      className="h-full w-full object-cover"
+                    />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Photo Modal */}
+          {photoModalUrl && (
+            <div
+              className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/90 p-4"
+              onClick={() => setPhotoModalUrl(null)}
+            >
+              <img
+                src={photoModalUrl}
+                alt="Foto ampliada"
+                className="max-h-[85vh] max-w-full object-contain"
+              />
+              <button
+                className="absolute top-4 right-4 text-cream/70 hover:text-cream text-2xl"
+                onClick={() => setPhotoModalUrl(null)}
+              >
+                ✕
+              </button>
             </div>
           )}
 
@@ -302,10 +359,41 @@ export default function ActivityDetailPage() {
               <div className="text-center">
                 <MapPin size={14} className="mx-auto mb-1 text-wool/42" />
                 <p className="font-secondary text-lg font-bold text-cream">
-                  {Math.round(activity.distance / (activity.duration / 60) * 100) / 100 || 0}
+                  {activity.duration > 0 ? Math.round((activity.distance * 1000 / 0.75) / (activity.duration / 60)) : 0}
                 </p>
                 <p className="font-secondary text-[9px] uppercase tracking-[0.12em] text-wool/38">
                   Pasos/min
+                </p>
+              </div>
+            </div>
+
+            {/* Heart Rate, Elevation, Max Pace */}
+            <div className="mt-3 grid grid-cols-3 gap-3">
+              <div className="text-center">
+                <Heart size={14} className="mx-auto mb-1 text-red-400" />
+                <p className="font-secondary text-lg font-bold text-cream">
+                  {activity.avg_heart_rate ?? "—"}
+                </p>
+                <p className="font-secondary text-[9px] uppercase tracking-[0.12em] text-wool/38">
+                  FC media{activity.max_heart_rate ? ` / máx ${activity.max_heart_rate}` : ""}
+                </p>
+              </div>
+              <div className="text-center">
+                <Mountain size={14} className="mx-auto mb-1 text-green-400" />
+                <p className="font-secondary text-lg font-bold text-cream">
+                  {elevation > 0 ? `${Math.round(elevation)}m` : "—"}
+                </p>
+                <p className="font-secondary text-[9px] uppercase tracking-[0.12em] text-wool/38">
+                  D+ Acum.
+                </p>
+              </div>
+              <div className="text-center">
+                <Zap size={14} className="mx-auto mb-1 text-caramel" />
+                <p className="font-secondary text-lg font-bold text-caramel">
+                  {activity.max_pace ? formatPace(activity.max_pace) : "—"}
+                </p>
+                <p className="font-secondary text-[9px] uppercase tracking-[0.12em] text-wool/38">
+                  Ritmo máx
                 </p>
               </div>
             </div>
@@ -350,7 +438,7 @@ export default function ActivityDetailPage() {
                       </div>
                       <div className="text-right">
                         <p className="font-secondary text-lg font-bold text-caramel">
-                          {formatPace(1000 / split.pace)}
+                          {formatPace(split.pace)}
                         </p>
                         {i > 0 && (
                           <p
@@ -432,6 +520,7 @@ export default function ActivityDetailPage() {
                 onChange={(e) => setNewComment(e.target.value)}
                 placeholder="Escribe un comentario..."
                 className="flex-1 border border-wool/12 bg-dark/40 px-3 py-2 font-secondary text-sm text-cream outline-none transition-colors placeholder:text-wool/32 focus:border-caramel/50"
+                aria-label="Escribir comentario"
               />
               <button
                 type="submit"

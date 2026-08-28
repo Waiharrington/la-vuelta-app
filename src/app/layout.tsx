@@ -3,6 +3,7 @@ import { Anton, Inter, Outfit } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/components/auth-provider";
 import { PWARegister } from "@/components/pwa-register";
+import { PushNotificationPrompt } from "@/components/push-notification-prompt";
 
 const anton = Anton({
   variable: "--font-display",
@@ -32,7 +33,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "La Vuelta Running Co.",
+  title: "La Vuelta Running Club",
   description:
     "Comunidad runner en Maracay. No importa tu ritmo. La vuelta se da juntos.",
   manifest: "/manifest.json",
@@ -65,6 +66,7 @@ export default function RootLayout({
       <body className="min-h-screen">
         <AuthProvider>
           <PWARegister />
+          <PushNotificationPrompt />
           {children}
         </AuthProvider>
       </body>

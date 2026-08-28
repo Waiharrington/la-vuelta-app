@@ -125,7 +125,7 @@ export default function ActivitiesPage() {
               {
                 icon: Zap,
                 label: "Ritmo medio",
-                value: stats.avgPace > 0 ? formatPace(1000 / stats.avgPace) : "0:00",
+                value: stats.avgPace > 0 ? formatPace(stats.avgPace) : "0:00",
                 accent: true,
               },
               { icon: Flame, label: "Calorías", value: stats.totalCalories, accent: false },
