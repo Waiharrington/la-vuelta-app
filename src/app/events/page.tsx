@@ -52,17 +52,13 @@ interface RawEvent {
 type Tab = "upcoming" | "mine" | "past";
 
 export default function EventsPage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, membership } = useAuth();
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>("upcoming");
   const supabase = createClient();
 
   const fetchEvents = useCallback(async () => {
-    if (!user) return;
-
-    const now = new Date().toISOString();
-
     // Fetch all events with participant count and user's RSVP
     const { data: eventsData } = await supabase
       .from("events")
@@ -85,8 +81,9 @@ export default function EventsPage() {
         ...event,
         clubs: event.clubs,
         participant_count: participants.length,
-        my_status:
-          (participants.find((p: { status: string; user_id: string }) => p.user_id === user.id)?.status as Event['my_status']) || null,
+        my_status: user
+          ? ((participants.find((p: { status: string; user_id: string }) => p.user_id === user.id)?.status as Event['my_status']) || null)
+          : null,
       };
     });
 
@@ -105,7 +102,7 @@ export default function EventsPage() {
     if (tab === "upcoming") return eventDate >= now;
     if (tab === "past") return eventDate < now;
     // mine
-    return event.created_by === user?.id;
+    return !!user && event.created_by === user.id;
   });
 
   const formatDate = (dateStr: string) => {
@@ -187,14 +184,14 @@ export default function EventsPage() {
             ))}
           </div>
 
-          {/* Create Event Button */}
-          <Link
+          {/* Solo miembros activos pueden convocar nuevas actividades */}
+          {membership?.active && <Link
             href="/events/new"
             className="brand-button mb-5 flex w-full items-center justify-center gap-2 py-3"
           >
             <Plus size={18} />
             Crear Evento
-          </Link>
+          </Link>}
 
           {/* Events List */}
           {filteredEvents.length === 0 ? (

@@ -4,6 +4,7 @@ import "./globals.css";
 import { AuthProvider } from "@/components/auth-provider";
 import { PWARegister } from "@/components/pwa-register";
 import { PushNotificationPrompt } from "@/components/push-notification-prompt";
+import { MembershipGate } from "@/components/membership-gate";
 
 const anton = Anton({
   variable: "--font-display",
@@ -67,7 +68,7 @@ export default function RootLayout({
         <AuthProvider>
           <PWARegister />
           <PushNotificationPrompt />
-          {children}
+          <MembershipGate>{children}</MembershipGate>
         </AuthProvider>
       </body>
     </html>
